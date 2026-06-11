@@ -4,7 +4,12 @@
   "directories": { "output": "release" },
   "files": ["dist/**", "dist-electron/**", "package.json"],
   "extraResources": [{ "from": "build-daemon/", "to": "." }],
-  "linux": { "target": ["AppImage", "deb"], "category": "Network" },
+  "linux": {
+    "target": ["AppImage", "pacman"],
+    "category": "Network",
+    "icon": "build/icon.png",
+    "syncDesktopName": true
+  },
   "win": { "target": ["nsis"] },
   "mac": { "target": ["dmg"], "category": "public.app-category.social-networking" }
 }

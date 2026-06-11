@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "description": "Electron-оболочка molva: рендер состояния ядра и медиастек",
+  "author": "udison <udison.myself@gmail.com>",
+  "homepage": "https://github.com/udisondev/molva",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -17,6 +19,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",
     "electron": "^36.4.0",
+    "electron-builder": "^26.15.2",
     "esbuild": "^0.25.5",
     "ts-proto": "^2.7.0",
     "typescript": "^5.8.3",
