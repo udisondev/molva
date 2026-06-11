@@ -83,7 +83,8 @@ func (d *DB) checkCanary(ctx context.Context) error {
 // Close закрывает базу.
 func (d *DB) Close() error { return d.sql.Close() }
 
-// Tx выполняет fn в одной транзакции; ошибка fn откатывает всё.
+// Tx выполняет fn в одной транзакции; ошибка fn откатывает всё. Хуки
+// AfterCommit зовутся после успешного коммита, в порядке регистрации.
 func (d *DB) Tx(ctx context.Context, fn func(tx *Tx) error) error {
 	sqlTx, err := d.sql.BeginTx(ctx, nil)
 	if err != nil {
@@ -96,6 +97,9 @@ func (d *DB) Tx(ctx context.Context, fn func(tx *Tx) error) error {
 	}
 	if err := sqlTx.Commit(); err != nil {
 		return fmt.Errorf("store: commit: %w", err)
+	}
+	for _, fn := range t.after {
+		fn()
 	}
 	return nil
 }

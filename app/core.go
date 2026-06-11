@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/udisondev/molva/chat"
+	"github.com/udisondev/molva/contact"
+	"github.com/udisondev/molva/envelope"
 	"github.com/udisondev/molva/outbox"
 	"github.com/udisondev/molva/peer"
 	"github.com/udisondev/molva/store"
@@ -40,17 +43,27 @@ type Config struct {
 	// OnDelivery — отладочный перехват входящих payload'ов до разбора
 	// конвертов; в проде не используется.
 	OnDelivery func(from node.ID, payload []byte)
+
+	// События для слоя представления (IPC); все зовутся после коммита
+	// соответствующей транзакции.
+	OnMessage        func(store.Message)
+	OnDelivered      func(peer.ID, envelope.MsgID)
+	OnContactRequest func(peer.ID, string)
+	OnContactAccept  func(peer.ID)
+	OnPresence       func(peer.ID, bool)
 }
 
 // Core — работающее ядро molva: nodenet-узел, хранилище, движок надёжной
 // доставки и петля диспетчеризации входящих. Создаётся New, живёт в
 // пределах Run; Run закрывает базу на выходе.
 type Core struct {
-	id     *identity.Identity
-	node   *node.Node
-	db     *store.DB
-	outbox *outbox.Manager
-	tap    func(from node.ID, payload []byte)
+	id       *identity.Identity
+	node     *node.Node
+	db       *store.DB
+	outbox   *outbox.Manager
+	contacts *contact.Manager
+	chats    *chat.Manager
+	tap      func(from node.ID, payload []byte)
 }
 
 // New собирает ядро и открывает хранилище. Узел не запускается — это
@@ -79,6 +92,21 @@ func New(cfg Config) (*Core, error) {
 		tap:  cfg.OnDelivery,
 	}
 	c.outbox = outbox.NewManager(db, c.sendQueued, c.sendControl)
+	c.outbox.SetOnDelivered(cfg.OnDelivered)
+
+	self := peer.ID(id.ID())
+	c.contacts, err = contact.NewManager(db, c.outbox, self, c.sendControl)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	c.contacts.SetCallbacks(cfg.OnContactRequest, cfg.OnContactAccept, cfg.OnPresence)
+	c.outbox.SetGate(c.contacts.Gate)
+
+	c.chats = chat.NewManager(db, c.outbox, cfg.Seed, self, func(p peer.ID) bool {
+		return c.contacts.State(p) == store.PeerContact
+	})
+	c.chats.SetOnMessage(cfg.OnMessage)
 	return c, nil
 }
 
@@ -90,6 +118,7 @@ func (c *Core) Run(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	wg.Go(func() { _ = c.outbox.Run(ctx) })
+	wg.Go(func() { _ = c.contacts.RunPresence(ctx) })
 
 	nodeErr := make(chan error, 1)
 	go func() { nodeErr <- c.node.Run(ctx) }()
@@ -98,7 +127,9 @@ func (c *Core) Run(ctx context.Context) error {
 		if c.tap != nil {
 			c.tap(d.Originator, d.Payload)
 		}
-		c.outbox.HandleInbound(ctx, peer.ID(d.Originator), d.Payload)
+		from := peer.ID(d.Originator)
+		c.contacts.MarkActivity(from)
+		c.outbox.HandleInbound(ctx, from, d.Payload)
 	}
 
 	err := <-nodeErr
@@ -140,3 +171,9 @@ func (c *Core) Store() *store.DB { return c.db }
 
 // Outbox — движок надёжной доставки.
 func (c *Core) Outbox() *outbox.Manager { return c.outbox }
+
+// Contacts — круг общения: знакомство, блокировка, алиасы, presence.
+func (c *Core) Contacts() *contact.Manager { return c.contacts }
+
+// Chats — личные диалоги.
+func (c *Core) Chats() *chat.Manager { return c.chats }

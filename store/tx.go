@@ -13,10 +13,15 @@ import (
 // Tx — открытая транзакция; все мутации БД идут через её методы, чтобы
 // эффект сообщения и крипто-состояние коммитились атомарно.
 type Tx struct {
-	ctx context.Context
-	tx  *sql.Tx
-	box box
+	ctx   context.Context
+	tx    *sql.Tx
+	box   box
+	after []func()
 }
+
+// AfterCommit откладывает fn до успешного коммита: события и обновления
+// кэшей не должны опережать долговечность (откат не должен их отзывать).
+func (t *Tx) AfterCommit(fn func()) { t.after = append(t.after, fn) }
 
 // InsertMessage пишет запись истории; тело шифруется на месте. Повторная
 // вставка того же (peer, направление, msg_id) — не ошибка, а false:

@@ -54,10 +54,10 @@ func SendChat(t *testing.T, n *Node, to peer.ID, text string) envelope.MsgID {
 	return mid
 }
 
-// RecordChat регистрирует на ядре обработчик TYPE_CHAT, прототипирующий
-// путь приёма пакета chat: лампорт и история в одной транзакции с дедупом.
-// before, если задан, зовётся внутри транзакции до записи — точка инъекции
-// ошибок для crash-сценариев.
+// RecordChat подменяет штатный обработчик TYPE_CHAT упрощённым (без
+// крипто): тесты слоя надёжности гоняют открытые payload'ы в паре с
+// SendChat. before, если задан, зовётся внутри транзакции до записи —
+// точка инъекции ошибок для crash-сценариев.
 func RecordChat(core *app.Core, before func() error) {
 	core.Outbox().Handle(envelope.TypeChat, func(tx *store.Tx, from peer.ID, env *envelope.Envelope) error {
 		if before != nil {

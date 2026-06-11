@@ -26,6 +26,8 @@ func TestDeliveryOfflineToOnlineExactlyOnce(t *testing.T) {
 		}))
 		a, b := c.Node(0), c.Node(1)
 		ctx := context.Background()
+		MakeContacts(t, c, 0, 1)
+		base := a.Core().Outbox().Stats()
 
 		c.Kill(1)
 		mid := SendChat(t, a, b.PeerID(), "догонишь — прочтёшь")
@@ -67,11 +69,11 @@ func TestDeliveryOfflineToOnlineExactlyOnce(t *testing.T) {
 		}
 
 		st := a.Core().Outbox().Stats()
-		if st.SendFailures == 0 {
+		if st.SendFailures <= base.SendFailures {
 			t.Fatal("попытки при мёртвом получателе обязаны гореть в счётчике")
 		}
-		if st.Delivered != 1 {
-			t.Fatalf("Delivered = %d, want 1", st.Delivered)
+		if got := st.Delivered - base.Delivered; got != 1 {
+			t.Fatalf("Delivered вырос на %d, want 1", got)
 		}
 	})
 }
@@ -83,6 +85,8 @@ func TestForgedAckIgnored(t *testing.T) {
 		c := NewCluster(t, 3)
 		a, b, evil := c.Node(0), c.Node(1), c.Node(2)
 		ctx := context.Background()
+		MakeContacts(t, c, 0, 1)
+		base := a.Core().Outbox().Stats()
 
 		c.Kill(1)
 		mid := SendChat(t, a, b.PeerID(), "только для B")
@@ -110,10 +114,10 @@ func TestForgedAckIgnored(t *testing.T) {
 			t.Fatalf("очередь к B: %d, want 1", n)
 		}
 		st := a.Core().Outbox().Stats()
-		if st.Delivered != 0 {
-			t.Fatalf("Delivered = %d, want 0", st.Delivered)
+		if got := st.Delivered - base.Delivered; got != 0 {
+			t.Fatalf("Delivered вырос на %d, want 0", got)
 		}
-		if st.AcksUnknown+st.GateDropped == 0 {
+		if st.AcksUnknown+st.GateDropped == base.AcksUnknown+base.GateDropped {
 			t.Fatal("подделка обязана быть видна в счётчиках")
 		}
 	})
@@ -129,6 +133,7 @@ func TestSenderRestartKeepsQueue(t *testing.T) {
 			}
 		}))
 		a, b := c.Node(0), c.Node(1)
+		MakeContacts(t, c, 0, 1)
 
 		c.Kill(1)
 		mid := SendChat(t, a, b.PeerID(), "переживу рестарт")
@@ -158,6 +163,7 @@ func TestDeletedNotResurrected(t *testing.T) {
 		}))
 		a, b := c.Node(0), c.Node(1)
 		ctx := context.Background()
+		MakeContacts(t, c, 0, 1)
 
 		mid := SendChat(t, a, b.PeerID(), "сотри меня")
 		WaitMessageStatus(t, a, b.PeerID(), mid, store.StatusDelivered, 5*time.Minute)
@@ -220,6 +226,7 @@ func TestHandlerErrorRollsBackAndRetries(t *testing.T) {
 		}))
 		a, b := c.Node(0), c.Node(1)
 		ctx := context.Background()
+		MakeContacts(t, c, 0, 1)
 
 		mid := SendChat(t, a, b.PeerID(), "со второй попытки")
 		WaitMessageStatus(t, a, b.PeerID(), mid, store.StatusDelivered, 15*time.Minute)
