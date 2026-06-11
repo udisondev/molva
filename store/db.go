@@ -135,6 +135,21 @@ func (d *DB) ListMessages(ctx context.Context, p peer.ID, limit int) ([]Message,
 	return out, nil
 }
 
+// LastMessage — последнее сообщение диалога в порядке отображения.
+func (d *DB) LastMessage(ctx context.Context, p peer.ID) (Message, bool, error) {
+	row := d.sql.QueryRowContext(ctx,
+		`SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct
+		 FROM messages WHERE peer = ? ORDER BY lamport DESC, id DESC LIMIT 1`, p[:])
+	m, err := scanMessage(row, d.box)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Message{}, false, nil
+	}
+	if err != nil {
+		return Message{}, false, err
+	}
+	return m, true, nil
+}
+
 // GetMessage — одно сообщение по ключу истории.
 func (d *DB) GetMessage(ctx context.Context, p peer.ID, mid envelope.MsgID, outgoing bool) (Message, bool, error) {
 	row := d.sql.QueryRowContext(ctx,

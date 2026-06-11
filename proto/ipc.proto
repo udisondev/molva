@@ -84,8 +84,11 @@ message ListMessages {
   uint32 limit = 3;
 }
 
-// Запрос собственной инвайт-строки.
-message MyInvite {}
+// Запрос собственной инвайт-строки; alias — предлагаемое имя для
+// получателя инвайта (необязательно).
+message MyInvite {
+  string alias = 1;
+}
 
 // Событие ядро → UI.
 message Event {
@@ -119,8 +122,17 @@ message Chat {
   bytes peer = 1;
   string alias = 2;
   bool online = 3;
-  bool blocked = 4;
-  Message last_message = 5;
+  Message last_message = 4;
+  State state = 5;
+
+  // Состояние знакомства с пиром.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_PENDING_OUT = 1; // мы отправили запрос
+    STATE_PENDING_IN = 2;  // запрос ждёт нашего решения
+    STATE_CONTACT = 3;     // принятый контакт
+    STATE_BLOCKED = 4;     // заблокирован
+  }
 }
 
 message MessageList {

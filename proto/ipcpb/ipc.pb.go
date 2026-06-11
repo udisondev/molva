@@ -21,6 +21,62 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Состояние знакомства с пиром.
+type Chat_State int32
+
+const (
+	Chat_STATE_UNSPECIFIED Chat_State = 0
+	Chat_STATE_PENDING_OUT Chat_State = 1 // мы отправили запрос
+	Chat_STATE_PENDING_IN  Chat_State = 2 // запрос ждёт нашего решения
+	Chat_STATE_CONTACT     Chat_State = 3 // принятый контакт
+	Chat_STATE_BLOCKED     Chat_State = 4 // заблокирован
+)
+
+// Enum value maps for Chat_State.
+var (
+	Chat_State_name = map[int32]string{
+		0: "STATE_UNSPECIFIED",
+		1: "STATE_PENDING_OUT",
+		2: "STATE_PENDING_IN",
+		3: "STATE_CONTACT",
+		4: "STATE_BLOCKED",
+	}
+	Chat_State_value = map[string]int32{
+		"STATE_UNSPECIFIED": 0,
+		"STATE_PENDING_OUT": 1,
+		"STATE_PENDING_IN":  2,
+		"STATE_CONTACT":     3,
+		"STATE_BLOCKED":     4,
+	}
+)
+
+func (x Chat_State) Enum() *Chat_State {
+	p := new(Chat_State)
+	*p = x
+	return p
+}
+
+func (x Chat_State) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Chat_State) Descriptor() protoreflect.EnumDescriptor {
+	return file_ipc_proto_enumTypes[0].Descriptor()
+}
+
+func (Chat_State) Type() protoreflect.EnumType {
+	return &file_ipc_proto_enumTypes[0]
+}
+
+func (x Chat_State) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Chat_State.Descriptor instead.
+func (Chat_State) EnumDescriptor() ([]byte, []int) {
+	return file_ipc_proto_rawDescGZIP(), []int{17, 0}
+}
+
 type Message_Status int32
 
 const (
@@ -57,11 +113,11 @@ func (x Message_Status) String() string {
 }
 
 func (Message_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_ipc_proto_enumTypes[0].Descriptor()
+	return file_ipc_proto_enumTypes[1].Descriptor()
 }
 
 func (Message_Status) Type() protoreflect.EnumType {
-	return &file_ipc_proto_enumTypes[0]
+	return &file_ipc_proto_enumTypes[1]
 }
 
 func (x Message_Status) Number() protoreflect.EnumNumber {
@@ -926,9 +982,11 @@ func (x *ListMessages) GetLimit() uint32 {
 	return 0
 }
 
-// Запрос собственной инвайт-строки.
+// Запрос собственной инвайт-строки; alias — предлагаемое имя для
+// получателя инвайта (необязательно).
 type MyInvite struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Alias         string                 `protobuf:"bytes,1,opt,name=alias,proto3" json:"alias,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -961,6 +1019,13 @@ func (x *MyInvite) ProtoReflect() protoreflect.Message {
 // Deprecated: Use MyInvite.ProtoReflect.Descriptor instead.
 func (*MyInvite) Descriptor() ([]byte, []int) {
 	return file_ipc_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *MyInvite) GetAlias() string {
+	if x != nil {
+		return x.Alias
+	}
+	return ""
 }
 
 // Событие ядро → UI.
@@ -1290,8 +1355,8 @@ type Chat struct {
 	Peer          []byte                 `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
 	Alias         string                 `protobuf:"bytes,2,opt,name=alias,proto3" json:"alias,omitempty"`
 	Online        bool                   `protobuf:"varint,3,opt,name=online,proto3" json:"online,omitempty"`
-	Blocked       bool                   `protobuf:"varint,4,opt,name=blocked,proto3" json:"blocked,omitempty"`
-	LastMessage   *Message               `protobuf:"bytes,5,opt,name=last_message,json=lastMessage,proto3" json:"last_message,omitempty"`
+	LastMessage   *Message               `protobuf:"bytes,4,opt,name=last_message,json=lastMessage,proto3" json:"last_message,omitempty"`
+	State         Chat_State             `protobuf:"varint,5,opt,name=state,proto3,enum=molva.ipc.v1.Chat_State" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1347,18 +1412,18 @@ func (x *Chat) GetOnline() bool {
 	return false
 }
 
-func (x *Chat) GetBlocked() bool {
-	if x != nil {
-		return x.Blocked
-	}
-	return false
-}
-
 func (x *Chat) GetLastMessage() *Message {
 	if x != nil {
 		return x.LastMessage
 	}
 	return nil
+}
+
+func (x *Chat) GetState() Chat_State {
+	if x != nil {
+		return x.State
+	}
+	return Chat_STATE_UNSPECIFIED
 }
 
 type MessageList struct {
@@ -1883,9 +1948,9 @@ const file_ipc_proto_rawDesc = "" +
 	"\x04peer\x18\x01 \x01(\fR\x04peer\x12\x1d\n" +
 	"\n" +
 	"before_seq\x18\x02 \x01(\x04R\tbeforeSeq\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\rR\x05limit\"\n" +
-	"\n" +
-	"\bMyInvite\"\xd7\x03\n" +
+	"\x05limit\x18\x03 \x01(\rR\x05limit\" \n" +
+	"\bMyInvite\x12\x14\n" +
+	"\x05alias\x18\x01 \x01(\tR\x05alias\"\xd7\x03\n" +
 	"\x05Event\x12D\n" +
 	"\x0ecommand_result\x18\x01 \x01(\v2\x1b.molva.ipc.v1.CommandResultH\x00R\rcommandResult\x12J\n" +
 	"\x10message_received\x18\x02 \x01(\v2\x1d.molva.ipc.v1.MessageReceivedH\x00R\x0fmessageReceived\x12M\n" +
@@ -1903,13 +1968,19 @@ const file_ipc_proto_rawDesc = "" +
 	"\x06invite\x18\x06 \x01(\v2\x14.molva.ipc.v1.InviteH\x00R\x06inviteB\x06\n" +
 	"\x04data\"4\n" +
 	"\bChatList\x12(\n" +
-	"\x05chats\x18\x01 \x03(\v2\x12.molva.ipc.v1.ChatR\x05chats\"\x9c\x01\n" +
+	"\x05chats\x18\x01 \x03(\v2\x12.molva.ipc.v1.ChatR\x05chats\"\xa5\x02\n" +
 	"\x04Chat\x12\x12\n" +
 	"\x04peer\x18\x01 \x01(\fR\x04peer\x12\x14\n" +
 	"\x05alias\x18\x02 \x01(\tR\x05alias\x12\x16\n" +
-	"\x06online\x18\x03 \x01(\bR\x06online\x12\x18\n" +
-	"\ablocked\x18\x04 \x01(\bR\ablocked\x128\n" +
-	"\flast_message\x18\x05 \x01(\v2\x15.molva.ipc.v1.MessageR\vlastMessage\"@\n" +
+	"\x06online\x18\x03 \x01(\bR\x06online\x128\n" +
+	"\flast_message\x18\x04 \x01(\v2\x15.molva.ipc.v1.MessageR\vlastMessage\x12.\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x18.molva.ipc.v1.Chat.StateR\x05state\"q\n" +
+	"\x05State\x12\x15\n" +
+	"\x11STATE_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11STATE_PENDING_OUT\x10\x01\x12\x14\n" +
+	"\x10STATE_PENDING_IN\x10\x02\x12\x11\n" +
+	"\rSTATE_CONTACT\x10\x03\x12\x11\n" +
+	"\rSTATE_BLOCKED\x10\x04\"@\n" +
 	"\vMessageList\x121\n" +
 	"\bmessages\x18\x01 \x03(\v2\x15.molva.ipc.v1.MessageR\bmessages\"\xa9\x02\n" +
 	"\aMessage\x12\x15\n" +
@@ -1955,74 +2026,76 @@ func file_ipc_proto_rawDescGZIP() []byte {
 	return file_ipc_proto_rawDescData
 }
 
-var file_ipc_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ipc_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_ipc_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_ipc_proto_goTypes = []any{
-	(Message_Status)(0),      // 0: molva.ipc.v1.Message.Status
-	(*Frame)(nil),            // 1: molva.ipc.v1.Frame
-	(*Hello)(nil),            // 2: molva.ipc.v1.Hello
-	(*Command)(nil),          // 3: molva.ipc.v1.Command
-	(*SendText)(nil),         // 4: molva.ipc.v1.SendText
-	(*AcceptContact)(nil),    // 5: molva.ipc.v1.AcceptContact
-	(*RejectContact)(nil),    // 6: molva.ipc.v1.RejectContact
-	(*BlockContact)(nil),     // 7: molva.ipc.v1.BlockContact
-	(*UnblockContact)(nil),   // 8: molva.ipc.v1.UnblockContact
-	(*SetAlias)(nil),         // 9: molva.ipc.v1.SetAlias
-	(*DeleteMessage)(nil),    // 10: molva.ipc.v1.DeleteMessage
-	(*AddContact)(nil),       // 11: molva.ipc.v1.AddContact
-	(*ListChats)(nil),        // 12: molva.ipc.v1.ListChats
-	(*ListMessages)(nil),     // 13: molva.ipc.v1.ListMessages
-	(*MyInvite)(nil),         // 14: molva.ipc.v1.MyInvite
-	(*Event)(nil),            // 15: molva.ipc.v1.Event
-	(*CommandResult)(nil),    // 16: molva.ipc.v1.CommandResult
-	(*ChatList)(nil),         // 17: molva.ipc.v1.ChatList
-	(*Chat)(nil),             // 18: molva.ipc.v1.Chat
-	(*MessageList)(nil),      // 19: molva.ipc.v1.MessageList
-	(*Message)(nil),          // 20: molva.ipc.v1.Message
-	(*SentMessage)(nil),      // 21: molva.ipc.v1.SentMessage
-	(*Invite)(nil),           // 22: molva.ipc.v1.Invite
-	(*MessageReceived)(nil),  // 23: molva.ipc.v1.MessageReceived
-	(*MessageDelivered)(nil), // 24: molva.ipc.v1.MessageDelivered
-	(*PresenceChanged)(nil),  // 25: molva.ipc.v1.PresenceChanged
-	(*ContactRequested)(nil), // 26: molva.ipc.v1.ContactRequested
-	(*ContactAccepted)(nil),  // 27: molva.ipc.v1.ContactAccepted
+	(Chat_State)(0),          // 0: molva.ipc.v1.Chat.State
+	(Message_Status)(0),      // 1: molva.ipc.v1.Message.Status
+	(*Frame)(nil),            // 2: molva.ipc.v1.Frame
+	(*Hello)(nil),            // 3: molva.ipc.v1.Hello
+	(*Command)(nil),          // 4: molva.ipc.v1.Command
+	(*SendText)(nil),         // 5: molva.ipc.v1.SendText
+	(*AcceptContact)(nil),    // 6: molva.ipc.v1.AcceptContact
+	(*RejectContact)(nil),    // 7: molva.ipc.v1.RejectContact
+	(*BlockContact)(nil),     // 8: molva.ipc.v1.BlockContact
+	(*UnblockContact)(nil),   // 9: molva.ipc.v1.UnblockContact
+	(*SetAlias)(nil),         // 10: molva.ipc.v1.SetAlias
+	(*DeleteMessage)(nil),    // 11: molva.ipc.v1.DeleteMessage
+	(*AddContact)(nil),       // 12: molva.ipc.v1.AddContact
+	(*ListChats)(nil),        // 13: molva.ipc.v1.ListChats
+	(*ListMessages)(nil),     // 14: molva.ipc.v1.ListMessages
+	(*MyInvite)(nil),         // 15: molva.ipc.v1.MyInvite
+	(*Event)(nil),            // 16: molva.ipc.v1.Event
+	(*CommandResult)(nil),    // 17: molva.ipc.v1.CommandResult
+	(*ChatList)(nil),         // 18: molva.ipc.v1.ChatList
+	(*Chat)(nil),             // 19: molva.ipc.v1.Chat
+	(*MessageList)(nil),      // 20: molva.ipc.v1.MessageList
+	(*Message)(nil),          // 21: molva.ipc.v1.Message
+	(*SentMessage)(nil),      // 22: molva.ipc.v1.SentMessage
+	(*Invite)(nil),           // 23: molva.ipc.v1.Invite
+	(*MessageReceived)(nil),  // 24: molva.ipc.v1.MessageReceived
+	(*MessageDelivered)(nil), // 25: molva.ipc.v1.MessageDelivered
+	(*PresenceChanged)(nil),  // 26: molva.ipc.v1.PresenceChanged
+	(*ContactRequested)(nil), // 27: molva.ipc.v1.ContactRequested
+	(*ContactAccepted)(nil),  // 28: molva.ipc.v1.ContactAccepted
 }
 var file_ipc_proto_depIdxs = []int32{
-	2,  // 0: molva.ipc.v1.Frame.hello:type_name -> molva.ipc.v1.Hello
-	3,  // 1: molva.ipc.v1.Frame.command:type_name -> molva.ipc.v1.Command
-	15, // 2: molva.ipc.v1.Frame.event:type_name -> molva.ipc.v1.Event
-	4,  // 3: molva.ipc.v1.Command.send_text:type_name -> molva.ipc.v1.SendText
-	5,  // 4: molva.ipc.v1.Command.accept_contact:type_name -> molva.ipc.v1.AcceptContact
-	6,  // 5: molva.ipc.v1.Command.reject_contact:type_name -> molva.ipc.v1.RejectContact
-	7,  // 6: molva.ipc.v1.Command.block_contact:type_name -> molva.ipc.v1.BlockContact
-	8,  // 7: molva.ipc.v1.Command.unblock_contact:type_name -> molva.ipc.v1.UnblockContact
-	9,  // 8: molva.ipc.v1.Command.set_alias:type_name -> molva.ipc.v1.SetAlias
-	10, // 9: molva.ipc.v1.Command.delete_message:type_name -> molva.ipc.v1.DeleteMessage
-	11, // 10: molva.ipc.v1.Command.add_contact:type_name -> molva.ipc.v1.AddContact
-	12, // 11: molva.ipc.v1.Command.list_chats:type_name -> molva.ipc.v1.ListChats
-	13, // 12: molva.ipc.v1.Command.list_messages:type_name -> molva.ipc.v1.ListMessages
-	14, // 13: molva.ipc.v1.Command.my_invite:type_name -> molva.ipc.v1.MyInvite
-	16, // 14: molva.ipc.v1.Event.command_result:type_name -> molva.ipc.v1.CommandResult
-	23, // 15: molva.ipc.v1.Event.message_received:type_name -> molva.ipc.v1.MessageReceived
-	24, // 16: molva.ipc.v1.Event.message_delivered:type_name -> molva.ipc.v1.MessageDelivered
-	25, // 17: molva.ipc.v1.Event.presence_changed:type_name -> molva.ipc.v1.PresenceChanged
-	26, // 18: molva.ipc.v1.Event.contact_requested:type_name -> molva.ipc.v1.ContactRequested
-	27, // 19: molva.ipc.v1.Event.contact_accepted:type_name -> molva.ipc.v1.ContactAccepted
-	17, // 20: molva.ipc.v1.CommandResult.chats:type_name -> molva.ipc.v1.ChatList
-	19, // 21: molva.ipc.v1.CommandResult.messages:type_name -> molva.ipc.v1.MessageList
-	21, // 22: molva.ipc.v1.CommandResult.sent:type_name -> molva.ipc.v1.SentMessage
-	22, // 23: molva.ipc.v1.CommandResult.invite:type_name -> molva.ipc.v1.Invite
-	18, // 24: molva.ipc.v1.ChatList.chats:type_name -> molva.ipc.v1.Chat
-	20, // 25: molva.ipc.v1.Chat.last_message:type_name -> molva.ipc.v1.Message
-	20, // 26: molva.ipc.v1.MessageList.messages:type_name -> molva.ipc.v1.Message
-	0,  // 27: molva.ipc.v1.Message.status:type_name -> molva.ipc.v1.Message.Status
-	20, // 28: molva.ipc.v1.SentMessage.message:type_name -> molva.ipc.v1.Message
-	20, // 29: molva.ipc.v1.MessageReceived.message:type_name -> molva.ipc.v1.Message
-	30, // [30:30] is the sub-list for method output_type
-	30, // [30:30] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	3,  // 0: molva.ipc.v1.Frame.hello:type_name -> molva.ipc.v1.Hello
+	4,  // 1: molva.ipc.v1.Frame.command:type_name -> molva.ipc.v1.Command
+	16, // 2: molva.ipc.v1.Frame.event:type_name -> molva.ipc.v1.Event
+	5,  // 3: molva.ipc.v1.Command.send_text:type_name -> molva.ipc.v1.SendText
+	6,  // 4: molva.ipc.v1.Command.accept_contact:type_name -> molva.ipc.v1.AcceptContact
+	7,  // 5: molva.ipc.v1.Command.reject_contact:type_name -> molva.ipc.v1.RejectContact
+	8,  // 6: molva.ipc.v1.Command.block_contact:type_name -> molva.ipc.v1.BlockContact
+	9,  // 7: molva.ipc.v1.Command.unblock_contact:type_name -> molva.ipc.v1.UnblockContact
+	10, // 8: molva.ipc.v1.Command.set_alias:type_name -> molva.ipc.v1.SetAlias
+	11, // 9: molva.ipc.v1.Command.delete_message:type_name -> molva.ipc.v1.DeleteMessage
+	12, // 10: molva.ipc.v1.Command.add_contact:type_name -> molva.ipc.v1.AddContact
+	13, // 11: molva.ipc.v1.Command.list_chats:type_name -> molva.ipc.v1.ListChats
+	14, // 12: molva.ipc.v1.Command.list_messages:type_name -> molva.ipc.v1.ListMessages
+	15, // 13: molva.ipc.v1.Command.my_invite:type_name -> molva.ipc.v1.MyInvite
+	17, // 14: molva.ipc.v1.Event.command_result:type_name -> molva.ipc.v1.CommandResult
+	24, // 15: molva.ipc.v1.Event.message_received:type_name -> molva.ipc.v1.MessageReceived
+	25, // 16: molva.ipc.v1.Event.message_delivered:type_name -> molva.ipc.v1.MessageDelivered
+	26, // 17: molva.ipc.v1.Event.presence_changed:type_name -> molva.ipc.v1.PresenceChanged
+	27, // 18: molva.ipc.v1.Event.contact_requested:type_name -> molva.ipc.v1.ContactRequested
+	28, // 19: molva.ipc.v1.Event.contact_accepted:type_name -> molva.ipc.v1.ContactAccepted
+	18, // 20: molva.ipc.v1.CommandResult.chats:type_name -> molva.ipc.v1.ChatList
+	20, // 21: molva.ipc.v1.CommandResult.messages:type_name -> molva.ipc.v1.MessageList
+	22, // 22: molva.ipc.v1.CommandResult.sent:type_name -> molva.ipc.v1.SentMessage
+	23, // 23: molva.ipc.v1.CommandResult.invite:type_name -> molva.ipc.v1.Invite
+	19, // 24: molva.ipc.v1.ChatList.chats:type_name -> molva.ipc.v1.Chat
+	21, // 25: molva.ipc.v1.Chat.last_message:type_name -> molva.ipc.v1.Message
+	0,  // 26: molva.ipc.v1.Chat.state:type_name -> molva.ipc.v1.Chat.State
+	21, // 27: molva.ipc.v1.MessageList.messages:type_name -> molva.ipc.v1.Message
+	1,  // 28: molva.ipc.v1.Message.status:type_name -> molva.ipc.v1.Message.Status
+	21, // 29: molva.ipc.v1.SentMessage.message:type_name -> molva.ipc.v1.Message
+	21, // 30: molva.ipc.v1.MessageReceived.message:type_name -> molva.ipc.v1.Message
+	31, // [31:31] is the sub-list for method output_type
+	31, // [31:31] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_ipc_proto_init() }
@@ -2067,7 +2140,7 @@ func file_ipc_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ipc_proto_rawDesc), len(file_ipc_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   0,
