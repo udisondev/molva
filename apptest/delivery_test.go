@@ -65,6 +65,57 @@ func TestDeliveryOfflineToOnlineExactlyOnce(t *testing.T) {
 		if len(msgs) != 1 {
 			t.Fatalf("в истории %d сообщений, want 1", len(msgs))
 		}
+
+		st := a.Core().Outbox().Stats()
+		if st.SendFailures == 0 {
+			t.Fatal("попытки при мёртвом получателе обязаны гореть в счётчике")
+		}
+		if st.Delivered != 1 {
+			t.Fatalf("Delivered = %d, want 1", st.Delivered)
+		}
+	})
+}
+
+// Поддельный ack от третьего узла не гасит чужую очередь: расчёт строго
+// по паре (отправитель ack'а, msg_id).
+func TestForgedAckIgnored(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := NewCluster(t, 3)
+		a, b, evil := c.Node(0), c.Node(1), c.Node(2)
+		ctx := context.Background()
+
+		c.Kill(1)
+		mid := SendChat(t, a, b.PeerID(), "только для B")
+		time.Sleep(20 * time.Second)
+		synctest.Wait()
+
+		// Узел-злодей подделывает ack на чужой msg_id.
+		forged, err := envelope.Encode(envelope.Envelope{
+			MsgID: envelope.MsgID{0xEE, 1}, Type: envelope.TypeAck, Payload: mid[:],
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := evil.Core().Node().SendDirect(ctx, a.ID(), forged); err != nil {
+			t.Fatalf("отправка подделки: %v", err)
+		}
+		time.Sleep(30 * time.Second)
+		synctest.Wait()
+
+		m, ok, _ := a.Core().Store().GetMessage(ctx, b.PeerID(), mid, true)
+		if !ok || m.Status != store.StatusQueued {
+			t.Fatalf("подделка сработала: status=%v ok=%v", m.Status, ok)
+		}
+		if n, _ := a.Core().Store().OutboxPending(ctx, b.PeerID()); n != 1 {
+			t.Fatalf("очередь к B: %d, want 1", n)
+		}
+		st := a.Core().Outbox().Stats()
+		if st.Delivered != 0 {
+			t.Fatalf("Delivered = %d, want 0", st.Delivered)
+		}
+		if st.AcksUnknown+st.GateDropped == 0 {
+			t.Fatal("подделка обязана быть видна в счётчиках")
+		}
 	})
 }
 
@@ -145,6 +196,9 @@ func TestDeletedNotResurrected(t *testing.T) {
 		if n := handled.Load(); n != 1 {
 			t.Fatalf("обработчик звался %d раз, want 1 (дедуп обязан гасить)", n)
 		}
+		if got := b.Core().Outbox().Stats().DedupHits; got < 1 {
+			t.Fatalf("DedupHits = %d, want >= 1", got)
+		}
 	})
 }
 
@@ -180,6 +234,9 @@ func TestHandlerErrorRollsBackAndRetries(t *testing.T) {
 		}
 		if n := calls.Load(); n != 2 {
 			t.Fatalf("обработчик звался %d раз, want 2 (падение + успех)", n)
+		}
+		if got := b.Core().Outbox().Stats().HandlerErrors; got != 1 {
+			t.Fatalf("HandlerErrors = %d, want 1", got)
 		}
 	})
 }

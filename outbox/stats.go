@@ -11,10 +11,13 @@ type Stats struct {
 	AcksUnknown      uint64 // ack на неизвестный msg_id (дубль/подделка)
 	Delivered        uint64 // подтверждённые доставки наших конвертов
 	InboundMalformed uint64 // нечитаемые входящие конверты
+	GateDropped      uint64 // конверты, отсечённые гейтом (блок/незнакомец)
 	DedupHits        uint64 // пере-доставки, погашенные окном дедупа
 	HandlerErrors    uint64 // откаты обработчиков (доставка переиграется)
 	Unhandled        uint64 // надёжные типы без обработчика
 	KicksDropped     uint64 // переполнение канала Flush (таймер догонит)
+	StoreFailures    uint64 // ошибки транзакций движка (повтор холодным таймером)
+	OutboxCorrupt    uint64 // карантин нерасшифровываемых рядов очереди
 }
 
 // counters — живой блок; снапшот отдаёт Stats.
@@ -26,10 +29,13 @@ type counters struct {
 	acksUnknown      atomic.Uint64
 	delivered        atomic.Uint64
 	inboundMalformed atomic.Uint64
+	gateDropped      atomic.Uint64
 	dedupHits        atomic.Uint64
 	handlerErrors    atomic.Uint64
 	unhandled        atomic.Uint64
 	kicksDropped     atomic.Uint64
+	storeFailures    atomic.Uint64
+	outboxCorrupt    atomic.Uint64
 	dedupInserts     atomic.Uint64 // внутренний ритм подрезки окна
 }
 
@@ -43,9 +49,12 @@ func (m *Manager) Stats() Stats {
 		AcksUnknown:      m.ctr.acksUnknown.Load(),
 		Delivered:        m.ctr.delivered.Load(),
 		InboundMalformed: m.ctr.inboundMalformed.Load(),
+		GateDropped:      m.ctr.gateDropped.Load(),
 		DedupHits:        m.ctr.dedupHits.Load(),
 		HandlerErrors:    m.ctr.handlerErrors.Load(),
 		Unhandled:        m.ctr.unhandled.Load(),
 		KicksDropped:     m.ctr.kicksDropped.Load(),
+		StoreFailures:    m.ctr.storeFailures.Load(),
+		OutboxCorrupt:    m.ctr.outboxCorrupt.Load(),
 	}
 }

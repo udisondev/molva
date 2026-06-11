@@ -7,6 +7,7 @@ package outbox
 import (
 	"context"
 	"crypto/rand"
+	"sync"
 	"time"
 
 	"github.com/udisondev/molva/envelope"
@@ -22,6 +23,9 @@ const (
 	attemptTimeout = 15 * time.Second
 	// dueBatch — сколько готовых элементов забирается за проход.
 	dueBatch = 64
+	// flushWorkers — одновременных пиров в проходе отправщика: мёртвый пир
+	// жжёт свой таймаут, не задерживая доставку живым.
+	flushWorkers = 4
 	// dedupMaxAge/dedupCap — окно дедупликации получателя на пира.
 	dedupMaxAge = 30 * 24 * time.Hour
 	dedupCap    = 100_000
@@ -41,14 +45,19 @@ type Handler func(tx *store.Tx, from peer.ID, env *envelope.Envelope) error
 // без ack'а, без транзакции — молчание и есть ответ.
 type FastHandler func(from peer.ID, env *envelope.Envelope)
 
+// Gate решает, пускать ли конверт типа t от пира from в обработку.
+// Дроп — без ack'а: для отправителя неотличим от офлайна.
+type Gate func(from peer.ID, t envelope.Type) bool
+
 // Manager — движок надёжности. Вся регистрация (Handle, HandleFast,
-// SetOnDelivered) — строго до Run.
+// SetOnDelivered, SetGate) — строго до Run.
 type Manager struct {
 	db          *store.DB
 	sendQueued  SendFunc // путь очереди: прямое ребро, при нужде Connect
 	sendControl SendFunc // путь ack'ов: не блокирующий dispatch-цикл
 	handlers    map[envelope.Type]Handler
 	fast        map[envelope.Type]FastHandler
+	gate        Gate
 	onDelivered func(peer.ID, envelope.MsgID)
 	kick        chan peer.ID
 	ctr         counters
@@ -77,6 +86,10 @@ func (m *Manager) HandleFast(t envelope.Type, h FastHandler) { m.fast[t] = h }
 // SetOnDelivered — колбэк подтверждённой доставки (до Run).
 func (m *Manager) SetOnDelivered(f func(peer.ID, envelope.MsgID)) { m.onDelivered = f }
 
+// SetGate — фильтр входящих по отправителю и типу (до Run): блокировка и
+// отсев незнакомцев живут уровнем выше, движок лишь дропает со счётчиком.
+func (m *Manager) SetGate(g Gate) { m.gate = g }
+
 // EnqueueTx ставит конверт в персистентную очередь внутри транзакции
 // вызывающего — запись истории и постановка в очередь коммитятся вместе.
 // После коммита нужен Flush, чтобы не ждать таймера.
@@ -103,18 +116,21 @@ func (m *Manager) Run(ctx context.Context) error {
 	timer := time.NewTimer(time.Hour)
 	defer timer.Stop()
 	for {
-		m.flushDue(ctx)
+		healthy := m.flushDue(ctx)
 
 		var wake <-chan time.Time
-		if at, ok, err := m.db.OutboxNearest(ctx); err == nil && ok {
-			d := max(time.Until(time.UnixMilli(at)), 0)
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
 			}
-			timer.Reset(d)
+		}
+		if !healthy {
+			// Ошибка store: холодный повтор вместо busy-spin'а на 100% CPU.
+			timer.Reset(retryBase)
+			wake = timer.C
+		} else if at, ok, err := m.db.OutboxNearest(ctx); err == nil && ok {
+			timer.Reset(max(time.Until(time.UnixMilli(at)), 0))
 			wake = timer.C
 		}
 
@@ -124,54 +140,141 @@ func (m *Manager) Run(ctx context.Context) error {
 		case p := <-m.kick:
 			now := time.Now().UnixMilli()
 			err := m.db.Tx(ctx, func(tx *store.Tx) error { return tx.OutboxKick(p, now) })
-			if err != nil && ctx.Err() != nil {
-				return ctx.Err()
+			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				m.ctr.storeFailures.Add(1)
 			}
 		case <-wake:
 		}
 	}
 }
 
-// flushDue прогоняет все готовые элементы очереди.
-func (m *Manager) flushDue(ctx context.Context) {
-	for {
-		due, err := m.db.OutboxDue(ctx, time.Now().UnixMilli(), dueBatch)
-		if err != nil || len(due) == 0 {
-			return
-		}
-		for _, it := range due {
-			if ctx.Err() != nil {
-				return
-			}
-			m.attempt(ctx, it)
-		}
-		if len(due) < dueBatch {
-			return
-		}
-	}
+// attemptResult — итог обращения с одним готовым элементом за проход.
+type attemptResult struct {
+	item store.OutboxItem
+	sent bool // кадр ушёл в сеть
+	took bool // попытка была (skipped-элементы не считают attempts)
 }
 
-// attempt — одна попытка отправки элемента с переездом next_at по backoff'у.
-func (m *Manager) attempt(ctx context.Context, it store.OutboxItem) {
-	actx, cancel := context.WithTimeout(ctx, attemptTimeout)
-	sendErr := m.sendQueued(actx, it.Peer, it.Frame)
-	cancel()
-	m.ctr.sendAttempts.Add(1)
-	if sendErr != nil {
-		m.ctr.sendFailures.Add(1)
-	}
+// flushDue — один проход по готовым элементам: группировка по пирам,
+// ограниченный пул воркеров (пиры не блокируют друг друга), внутри пира —
+// последовательно, первая неудача пира скипает остаток его пачки (один
+// Connect-таймаут на пира за проход). Возвращает false при ошибке store.
+func (m *Manager) flushDue(ctx context.Context) bool {
+	for {
+		now := time.Now().UnixMilli()
+		due, corrupt, err := m.db.OutboxDue(ctx, now, dueBatch)
+		if err != nil {
+			m.ctr.storeFailures.Add(1)
+			return false
+		}
+		if len(corrupt) > 0 {
+			// Нерасшифровываемые ряды карантинятся удалением: повторное
+			// чтение их не вылечит, а очередь они не должны держать.
+			err := m.db.Tx(ctx, func(tx *store.Tx) error {
+				for _, id := range corrupt {
+					if err := tx.OutboxDeleteByID(id); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				m.ctr.storeFailures.Add(1)
+				return false
+			}
+			m.ctr.outboxCorrupt.Add(uint64(len(corrupt)))
+		}
+		if len(due) == 0 {
+			return true
+		}
 
-	nextAt := time.Now().UnixMilli() + backoff(it.Attempts+1).Milliseconds()
-	_ = m.db.Tx(ctx, func(tx *store.Tx) error {
-		if err := tx.OutboxAttempt(it.ID, it.Attempts+1, nextAt); err != nil {
-			return err
+		// Порядок группировки стабилен: пиры в порядке первого появления.
+		groups := make(map[peer.ID][]store.OutboxItem)
+		var order []peer.ID
+		for _, it := range due {
+			if _, ok := groups[it.Peer]; !ok {
+				order = append(order, it.Peer)
+			}
+			groups[it.Peer] = append(groups[it.Peer], it)
 		}
-		if sendErr != nil {
+
+		results := make([]attemptResult, 0, len(due))
+		var mu sync.Mutex
+		sem := make(chan struct{}, flushWorkers)
+		var wg sync.WaitGroup
+		for _, p := range order {
+			items := groups[p]
+			wg.Go(func() {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				failed := false
+				for _, it := range items {
+					if ctx.Err() != nil {
+						return
+					}
+					r := attemptResult{item: it}
+					if failed {
+						// Пир не отвечает — не жечь таймаут на каждом
+						// элементе, остаток пачки только сдвигается.
+						mu.Lock()
+						results = append(results, r)
+						mu.Unlock()
+						continue
+					}
+					actx, cancel := context.WithTimeout(ctx, attemptTimeout)
+					sendErr := m.sendQueued(actx, it.Peer, it.Frame)
+					cancel()
+					m.ctr.sendAttempts.Add(1)
+					r.took = true
+					if sendErr != nil {
+						m.ctr.sendFailures.Add(1)
+						failed = true
+					} else {
+						r.sent = true
+					}
+					mu.Lock()
+					results = append(results, r)
+					mu.Unlock()
+				}
+			})
+		}
+		wg.Wait()
+
+		// Все переезды next_at — одной транзакцией после прохода.
+		now = time.Now().UnixMilli()
+		err = m.db.Tx(ctx, func(tx *store.Tx) error {
+			for _, r := range results {
+				attempts := r.item.Attempts
+				if r.took {
+					attempts++
+				}
+				nextAt := now + backoff(max(attempts, 1)).Milliseconds()
+				if err := tx.OutboxAttempt(r.item.ID, attempts, nextAt); err != nil {
+					return err
+				}
+				if r.sent {
+					// Кадр ушёл в сеть — статус честно «sent» (не доставлен).
+					if err := tx.MessageStatusUp(r.item.Peer, r.item.MsgID, store.StatusSent); err != nil {
+						return err
+					}
+				}
+			}
 			return nil
+		})
+		if err != nil {
+			if ctx.Err() != nil {
+				return true
+			}
+			m.ctr.storeFailures.Add(1)
+			return false
 		}
-		// Кадр ушёл в сеть — статус сообщения честно «sent» (не доставлен).
-		return tx.MessageStatusUp(it.Peer, it.MsgID, store.StatusSent)
-	})
+		if len(due) < dueBatch {
+			return true
+		}
+	}
 }
 
 // HandleInbound разбирает входящий payload nodenet и ведёт его по пути
@@ -181,6 +284,10 @@ func (m *Manager) HandleInbound(ctx context.Context, from peer.ID, frame []byte)
 	env, err := envelope.Decode(frame)
 	if err != nil {
 		m.ctr.inboundMalformed.Add(1)
+		return
+	}
+	if m.gate != nil && !m.gate(from, env.Type) {
+		m.ctr.gateDropped.Add(1)
 		return
 	}
 	switch {
@@ -211,6 +318,10 @@ func (m *Manager) handleAck(ctx context.Context, from peer.ID, env envelope.Enve
 		return tx.MessageStatusUp(from, orig, store.StatusDelivered)
 	})
 	if err != nil {
+		// Строка осталась в очереди: отправитель ретраит, пир пере-ack'нет.
+		if ctx.Err() == nil {
+			m.ctr.storeFailures.Add(1)
+		}
 		return
 	}
 	if !settled {

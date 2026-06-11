@@ -148,15 +148,17 @@ func (d *DB) GetMessage(ctx context.Context, p peer.ID, mid envelope.MsgID, outg
 }
 
 // OutboxDue — элементы, чья пора пришла (next_at <= nowMs), старые сначала.
-func (d *DB) OutboxDue(ctx context.Context, nowMs int64, limit int) ([]OutboxItem, error) {
+// Нерасшифровываемые ряды (порча на диске) не валят выборку: их id
+// возвращаются отдельно, вызывающий обязан их карантинить — иначе битый
+// ряд останавливал бы очередь навсегда.
+func (d *DB) OutboxDue(ctx context.Context, nowMs int64, limit int) (items []OutboxItem, corrupt []int64, err error) {
 	rows, err := d.sql.QueryContext(ctx,
 		`SELECT id, peer, msg_id, frame_ct, attempts, next_at FROM outbox
 		 WHERE next_at <= ? ORDER BY next_at, id LIMIT ?`, nowMs, limit)
 	if err != nil {
-		return nil, fmt.Errorf("store: outbox due: %w", err)
+		return nil, nil, fmt.Errorf("store: outbox due: %w", err)
 	}
 	defer rows.Close()
-	var out []OutboxItem
 	for rows.Next() {
 		var (
 			it      OutboxItem
@@ -164,21 +166,22 @@ func (d *DB) OutboxDue(ctx context.Context, nowMs int64, limit int) ([]OutboxIte
 			frameCt []byte
 		)
 		if err := rows.Scan(&it.ID, &pb, &mb, &frameCt, &it.Attempts, &it.NextAt); err != nil {
-			return nil, fmt.Errorf("store: outbox due: %w", err)
+			return nil, nil, fmt.Errorf("store: outbox due: %w", err)
 		}
 		copy(it.Peer[:], pb)
 		copy(it.MsgID[:], mb)
 		frame, err := d.box.open(frameCt, aadOutbox(it.Peer, it.MsgID))
 		if err != nil {
-			return nil, err
+			corrupt = append(corrupt, it.ID)
+			continue
 		}
 		it.Frame = frame
-		out = append(out, it)
+		items = append(items, it)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: outbox due: %w", err)
+		return nil, nil, fmt.Errorf("store: outbox due: %w", err)
 	}
-	return out, nil
+	return items, corrupt, nil
 }
 
 // OutboxNearest — ближайший next_at очереди; false — очередь пуста.

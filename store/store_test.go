@@ -52,10 +52,27 @@ func TestMessageRoundTripAndStatus(t *testing.T) {
 	ctx := context.Background()
 
 	err := d.Tx(ctx, func(tx *Tx) error {
-		return tx.InsertMessage(&Message{
+		ins, err := tx.InsertMessage(&Message{
 			Peer: peerA, MsgID: midX, Outgoing: true, FromSeq: 1, Lamport: 5,
 			SentAt: 1000, Status: StatusQueued, Body: []byte("привет"),
 		})
+		if err != nil {
+			return err
+		}
+		if !ins {
+			t.Fatal("первая вставка обязана пройти")
+		}
+		// Повторная вставка — не ошибка, а дубль (идемпотентность).
+		ins, err = tx.InsertMessage(&Message{
+			Peer: peerA, MsgID: midX, Outgoing: true, SentAt: 1, Status: StatusQueued, Body: []byte("дубль"),
+		})
+		if err != nil {
+			return err
+		}
+		if ins {
+			t.Fatal("повторная вставка обязана быть дублем")
+		}
+		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +104,7 @@ func TestDeleteMessageBody(t *testing.T) {
 	ctx := context.Background()
 
 	err := d.Tx(ctx, func(tx *Tx) error {
-		if err := tx.InsertMessage(&Message{
+		if _, err := tx.InsertMessage(&Message{
 			Peer: peerA, MsgID: midX, Outgoing: false, SentAt: 1, Status: StatusDelivered,
 			Body: []byte("секрет"),
 		}); err != nil {
@@ -193,8 +210,8 @@ func TestOutboxLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	due, err := d.OutboxDue(ctx, 1000, 10)
-	if err != nil || len(due) != 1 {
+	due, corrupt, err := d.OutboxDue(ctx, 1000, 10)
+	if err != nil || len(due) != 1 || len(corrupt) != 0 {
 		t.Fatalf("due: %v %v", due, err)
 	}
 	if !bytes.Equal(due[0].Frame, frame) || due[0].Peer != peerA || due[0].MsgID != midX {
@@ -205,7 +222,7 @@ func TestOutboxLifecycle(t *testing.T) {
 	if err := d.Tx(ctx, func(tx *Tx) error { return tx.OutboxAttempt(due[0].ID, 1, 6000) }); err != nil {
 		t.Fatal(err)
 	}
-	if due, _ = d.OutboxDue(ctx, 1000, 10); len(due) != 0 {
+	if due, _, _ = d.OutboxDue(ctx, 1000, 10); len(due) != 0 {
 		t.Fatal("после attempt элемент не должен быть due")
 	}
 	at, ok, _ := d.OutboxNearest(ctx)
@@ -215,12 +232,15 @@ func TestOutboxLifecycle(t *testing.T) {
 	if err := d.Tx(ctx, func(tx *Tx) error { return tx.OutboxKick(peerA, 2000) }); err != nil {
 		t.Fatal(err)
 	}
-	if due, _ = d.OutboxDue(ctx, 2000, 10); len(due) != 1 || due[0].Attempts != 0 {
+	if due, _, _ = d.OutboxDue(ctx, 2000, 10); len(due) != 1 || due[0].Attempts != 0 {
 		t.Fatalf("kick не вернул в очередь: %+v", due)
 	}
 
-	// Ack снимает; повторный — нет.
+	// Ack снимает; чужой пир и повторный — нет.
 	err = d.Tx(ctx, func(tx *Tx) error {
+		if okk, err := tx.OutboxSettle(peer.ID{0xBB}, midX); err != nil || okk {
+			t.Fatalf("settle чужим пиром обязан быть пустым: %v %v", okk, err)
+		}
 		okk, err := tx.OutboxSettle(peerA, midX)
 		if err != nil || !okk {
 			t.Fatalf("settle: %v %v", okk, err)
@@ -249,7 +269,7 @@ func TestTxRollbackAtomicity(t *testing.T) {
 		if _, err := tx.DedupInsert(peerA, midX, 1); err != nil {
 			return err
 		}
-		if err := tx.InsertMessage(&Message{Peer: peerA, MsgID: midX, SentAt: 1, Status: StatusDelivered, Body: []byte("x")}); err != nil {
+		if _, err := tx.InsertMessage(&Message{Peer: peerA, MsgID: midX, SentAt: 1, Status: StatusDelivered, Body: []byte("x")}); err != nil {
 			return err
 		}
 		return boom
@@ -276,7 +296,7 @@ func TestEncryptedAtRest(t *testing.T) {
 	ctx := context.Background()
 	secret := []byte("СОВЕРШЕННО-СЕКРЕТНОЕ-ТЕЛО-0123456789")
 	err = d.Tx(ctx, func(tx *Tx) error {
-		if err := tx.InsertMessage(&Message{Peer: peerA, MsgID: midX, SentAt: 1, Status: StatusQueued, Body: secret}); err != nil {
+		if _, err := tx.InsertMessage(&Message{Peer: peerA, MsgID: midX, SentAt: 1, Status: StatusQueued, Body: secret}); err != nil {
 			return err
 		}
 		return tx.OutboxEnqueue(peerA, midY, secret, 1)

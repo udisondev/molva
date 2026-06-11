@@ -149,5 +149,8 @@ func (c *Cluster) contacts(i int) []routing.Contact {
 func (c *Cluster) shutdown() {
 	for _, n := range c.nodes {
 		n.Kill()
+		if d := n.InboxDropped(); d != 0 {
+			c.t.Errorf("node-%d: перехват входящих дропнул %d — сценарий не вычитывал вовремя", n.index, d)
+		}
 	}
 }

@@ -1,8 +1,9 @@
 package store
 
 import (
-	"database/sql"
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/udisondev/molva/envelope"
@@ -17,25 +18,33 @@ type Tx struct {
 	box box
 }
 
-// InsertMessage пишет запись истории; тело шифруется на месте.
-func (t *Tx) InsertMessage(m *Message) error {
+// InsertMessage пишет запись истории; тело шифруется на месте. Повторная
+// вставка того же (peer, направление, msg_id) — не ошибка, а false:
+// обработчики обязаны быть идемпотентными (пере-доставка после вытеснения
+// дедуп-окна не должна ни падать, ни дублировать историю).
+func (t *Tx) InsertMessage(m *Message) (bool, error) {
 	var bodyCt any
 	if m.Body != nil && !m.Deleted {
 		ct, err := t.box.seal(m.Body, aadMessage(m.Peer, m.MsgID, m.Outgoing))
 		if err != nil {
-			return err
+			return false, err
 		}
 		bodyCt = ct
 	}
-	_, err := t.tx.ExecContext(t.ctx,
+	res, err := t.tx.ExecContext(t.ctx,
 		`INSERT INTO messages (peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (peer, outgoing, msg_id) DO NOTHING`,
 		m.Peer[:], m.MsgID[:], boolInt(m.Outgoing), m.FromSeq, m.Lamport, m.SentAt,
 		int(m.Status), boolInt(m.Deleted), bodyCt)
 	if err != nil {
-		return fmt.Errorf("store: insert message: %w", err)
+		return false, fmt.Errorf("store: insert message: %w", err)
 	}
-	return nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("store: insert message: %w", err)
+	}
+	return n > 0, nil
 }
 
 // MessageStatusUp поднимает статус исходящего сообщения; понижения
@@ -80,9 +89,17 @@ func (t *Tx) NextSeq(scope string) (uint64, error) {
 // LamportNext — тик лампортовых часов для исходящего.
 func (t *Tx) LamportNext() (uint64, error) { return t.NextSeq("lamport") }
 
+// lamportCeil — потолок принимаемой лампортовой метки. Метка приходит из
+// недоверенного конверта: без потолка враждебный пир одной гигантской
+// меткой переполнил бы знаковый INTEGER счётчика (через MAX(...)+1 SQLite
+// уехал бы во float) и навсегда сломал отправку. 2^53 хватит на вечность
+// и безопасно далеко от обеих границ (int64 и точности float64).
+const lamportCeil = uint64(1) << 53
+
 // LamportObserve продвигает лампортовы часы по принятой метке:
-// value = max(value, remote) + 1.
+// value = max(value, min(remote, потолок)) + 1.
 func (t *Tx) LamportObserve(remote uint64) error {
+	remote = min(remote, lamportCeil)
 	_, err := t.tx.ExecContext(t.ctx,
 		`INSERT INTO counters (scope, value) VALUES ('lamport', ? + 1)
 		 ON CONFLICT (scope) DO UPDATE SET value = MAX(value, ?) + 1`,
@@ -93,20 +110,31 @@ func (t *Tx) LamportObserve(remote uint64) error {
 	return nil
 }
 
-// DedupInsert отмечает msg_id в окне дедупликации; false — уже встречался.
+// DedupInsert отмечает msg_id в окне дедупликации; false — уже встречался
+// (запись при этом освежается: активные пере-доставки продлевают окно,
+// чтобы ретраи пира не пережили его и не воскресили дубль).
 func (t *Tx) DedupInsert(p peer.ID, mid envelope.MsgID, nowMs int64) (bool, error) {
-	res, err := t.tx.ExecContext(t.ctx,
-		`INSERT INTO dedup (peer, msg_id, seen_at) VALUES (?, ?, ?)
-		 ON CONFLICT (peer, msg_id) DO NOTHING`,
-		p[:], mid[:], nowMs)
-	if err != nil {
+	var one int
+	err := t.tx.QueryRowContext(t.ctx,
+		`SELECT 1 FROM dedup WHERE peer = ? AND msg_id = ?`, p[:], mid[:]).Scan(&one)
+	switch {
+	case err == nil:
+		if _, err := t.tx.ExecContext(t.ctx,
+			`UPDATE dedup SET seen_at = ? WHERE peer = ? AND msg_id = ?`,
+			nowMs, p[:], mid[:]); err != nil {
+			return false, fmt.Errorf("store: dedup refresh: %w", err)
+		}
+		return false, nil
+	case errors.Is(err, sql.ErrNoRows):
+		if _, err := t.tx.ExecContext(t.ctx,
+			`INSERT INTO dedup (peer, msg_id, seen_at) VALUES (?, ?, ?)`,
+			p[:], mid[:], nowMs); err != nil {
+			return false, fmt.Errorf("store: dedup insert: %w", err)
+		}
+		return true, nil
+	default:
 		return false, fmt.Errorf("store: dedup insert: %w", err)
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("store: dedup insert: %w", err)
-	}
-	return n > 0, nil
 }
 
 // DedupPrune подрезает окно пира: по возрасту (cutoffMs) и по ёмкости
@@ -164,6 +192,14 @@ func (t *Tx) OutboxAttempt(id int64, attempts int, nextAtMs int64) error {
 		`UPDATE outbox SET attempts = ?, next_at = ? WHERE id = ?`, attempts, nextAtMs, id)
 	if err != nil {
 		return fmt.Errorf("store: outbox attempt: %w", err)
+	}
+	return nil
+}
+
+// OutboxDeleteByID снимает ряд по внутреннему id (карантин порчи).
+func (t *Tx) OutboxDeleteByID(id int64) error {
+	if _, err := t.tx.ExecContext(t.ctx, `DELETE FROM outbox WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("store: outbox delete: %w", err)
 	}
 	return nil
 }

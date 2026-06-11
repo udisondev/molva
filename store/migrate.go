@@ -34,14 +34,14 @@ CREATE INDEX messages_peer_order ON messages (peer, lamport, id);
 CREATE TABLE outbox (
   id         INTEGER PRIMARY KEY,
   peer       BLOB    NOT NULL,
-  msg_id     BLOB    NOT NULL UNIQUE,
+  msg_id     BLOB    NOT NULL,
   frame_ct   BLOB    NOT NULL,
   attempts   INTEGER NOT NULL DEFAULT 0,
   next_at    INTEGER NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  UNIQUE (peer, msg_id)
 );
-CREATE INDEX outbox_due  ON outbox (next_at);
-CREATE INDEX outbox_peer ON outbox (peer);
+CREATE INDEX outbox_due ON outbox (next_at);
 
 CREATE TABLE dedup (
   peer    BLOB    NOT NULL,
@@ -69,6 +69,24 @@ CREATE TABLE handshakes (
   hs_ct      BLOB    NOT NULL,
   sid        BLOB    NOT NULL,
   created_at INTEGER NOT NULL
+) WITHOUT ROWID;
+`,
+	// v3: контакты (знакомство/блокировка/алиасы) и очередь текстов,
+	// ждущих установления сессии.
+	`
+CREATE TABLE peers (
+  peer       BLOB PRIMARY KEY,
+  state      INTEGER NOT NULL,
+  alias_ct   BLOB,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE pending_chat (
+  peer      BLOB    NOT NULL,
+  msg_id    BLOB    NOT NULL,
+  queued_at INTEGER NOT NULL,
+  PRIMARY KEY (peer, msg_id)
 ) WITHOUT ROWID;
 `,
 }

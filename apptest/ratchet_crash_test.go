@@ -83,7 +83,7 @@ func TestRatchetStoreCrashConsistency(t *testing.T) {
 			if err := tx.SessionPut(idA, next, time.Now().UnixMilli()); err != nil {
 				return err
 			}
-			if err := tx.InsertMessage(&store.Message{
+			if _, err := tx.InsertMessage(&store.Message{
 				Peer: idA, MsgID: mid, Outgoing: false, SentAt: time.Now().UnixMilli(),
 				Status: store.StatusDelivered, Body: plain,
 			}); err != nil {

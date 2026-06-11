@@ -36,7 +36,7 @@ func SendChat(t *testing.T, n *Node, to peer.ID, text string) envelope.MsgID {
 		if err != nil {
 			return err
 		}
-		if err := tx.InsertMessage(&store.Message{
+		if _, err := tx.InsertMessage(&store.Message{
 			Peer: to, MsgID: mid, Outgoing: true, FromSeq: seq, Lamport: lam,
 			SentAt: time.Now().UnixMilli(), Status: store.StatusQueued, Body: []byte(text),
 		}); err != nil {
@@ -68,11 +68,12 @@ func RecordChat(core *app.Core, before func() error) {
 		if err := tx.LamportObserve(env.LamportTS); err != nil {
 			return err
 		}
-		return tx.InsertMessage(&store.Message{
+		_, err := tx.InsertMessage(&store.Message{
 			Peer: from, MsgID: env.MsgID, Outgoing: false, FromSeq: env.FromSeq,
 			Lamport: env.LamportTS, SentAt: time.Now().UnixMilli(),
 			Status: store.StatusDelivered, Body: env.Payload,
 		})
+		return err
 	})
 }
 
