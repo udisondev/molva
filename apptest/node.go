@@ -21,6 +21,10 @@ type Delivery struct {
 	Payload []byte
 }
 
+// SetupFunc настраивает ядро между сборкой и запуском: регистрация
+// обработчиков конвертов, колбэков. Вызывается и на каждом рестарте.
+type SetupFunc func(i int, core *app.Core)
+
 // Node — одно ядро molva в тестовом кластере: детерминированная identity,
 // mem-транспорт, запущенный app.Core и перехват входящих. Переживает
 // Kill/Restart с тем же seed'ом и каталогом данных.
@@ -32,6 +36,7 @@ type Node struct {
 	id      node.ID
 	addr    transport.Addr
 	dataDir string
+	setup   SetupFunc
 
 	inbox        chan Delivery
 	inboxDropped atomic.Uint64
@@ -44,7 +49,7 @@ type Node struct {
 	done   chan error
 }
 
-func newNode(t *testing.T, hub *mem.Hub, index int, dataDir string) *Node {
+func newNode(t *testing.T, hub *mem.Hub, index int, dataDir string, setup SetupFunc) *Node {
 	seed := SeedFor(uint64(index) + 1)
 	return &Node{
 		t:       t,
@@ -54,12 +59,13 @@ func newNode(t *testing.T, hub *mem.Hub, index int, dataDir string) *Node {
 		id:      identity.FromSeed(seed).ID(),
 		addr:    transport.Addr{Net: "mem", Endpoint: fmt.Sprintf("node-%d", index)},
 		dataDir: dataDir,
+		setup:   setup,
 		inbox:   make(chan Delivery, 1024),
 	}
 }
 
 // start поднимает ядро с актуальным bootstrap-списком. Падает тестом при
-// ошибке транспорта.
+// ошибке транспорта или хранилища.
 func (n *Node) start(contacts []routing.Contact) {
 	n.t.Helper()
 	n.mu.Lock()
@@ -72,8 +78,9 @@ func (n *Node) start(contacts []routing.Contact) {
 		n.t.Fatalf("node-%d: транспорт: %v", n.index, err)
 	}
 	m := shortMaintenance()
-	core := app.New(app.Config{
+	core, err := app.New(app.Config{
 		Seed:        n.seed,
+		DataDir:     n.dataDir,
 		Transport:   tr,
 		Bootstrap:   contacts,
 		Maintenance: &m,
@@ -85,6 +92,12 @@ func (n *Node) start(contacts []routing.Contact) {
 			}
 		},
 	})
+	if err != nil {
+		n.t.Fatalf("node-%d: ядро: %v", n.index, err)
+	}
+	if n.setup != nil {
+		n.setup(n.index, core)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- core.Run(ctx) }()

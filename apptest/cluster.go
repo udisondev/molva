@@ -21,17 +21,34 @@ type Cluster struct {
 	nodes []*Node
 }
 
+// Option настраивает кластер при создании.
+type Option func(*clusterConfig)
+
+type clusterConfig struct {
+	setup SetupFunc
+}
+
+// WithSetup задаёт настройку каждого ядра между сборкой и запуском
+// (регистрация обработчиков); вызывается и на рестартах.
+func WithSetup(f SetupFunc) Option {
+	return func(cfg *clusterConfig) { cfg.setup = f }
+}
+
 // NewCluster поднимает n ядер, связывает полной сеткой и дожидается её
 // сходимости. По завершении теста живые узлы гасятся автоматически.
-func NewCluster(t *testing.T, n int) *Cluster {
+func NewCluster(t *testing.T, n int, opts ...Option) *Cluster {
 	t.Helper()
+	var cfg clusterConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
 	c := &Cluster{
 		t:   t,
 		hub: mem.NewHub(mem.WithInboundBuffer(64)),
 	}
 	base := t.TempDir()
 	for i := range n {
-		c.nodes = append(c.nodes, newNode(t, c.hub, i, filepath.Join(base, fmt.Sprintf("node-%d", i))))
+		c.nodes = append(c.nodes, newNode(t, c.hub, i, filepath.Join(base, fmt.Sprintf("node-%d", i)), cfg.setup))
 	}
 	for i := range n {
 		c.nodes[i].start(c.contacts(i))
