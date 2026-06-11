@@ -94,5 +94,12 @@ func parseBootstrapEntry(s string) (routing.Contact, error) {
 	if !strings.Contains(hostPort, ":") {
 		return routing.Contact{}, ErrBadBootstrap
 	}
-	return routing.Contact{ID: nid, Addrs: []transport.Addr{{Net: "quic", Endpoint: hostPort}}}, nil
+	// PublicAnchor: точка входа — стабильный публично-адресуемый узел; дозваниваемся
+	// напрямую и терпеливо, без fail-fast перехода в hole-punch (см. parseBootstrap
+	// в cmd/molvad). Иначе стратегия дозвона до bootstrap деградирует.
+	return routing.Contact{
+		ID:    nid,
+		Caps:  routing.PublicAnchor,
+		Addrs: []transport.Addr{{Net: "quic", Endpoint: hostPort}},
+	}, nil
 }

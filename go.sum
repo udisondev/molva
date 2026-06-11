@@ -26,8 +26,8 @@ github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/udisondev/nodenet v0.2.2 h1:l2WAUJ7nYfceRWd5DVb5N0UdJ4VGBkVJdgA9nQX1VpA=
-github.com/udisondev/nodenet v0.2.2/go.mod h1:YNWVm7iXOWmJ0NBWgwEpX+b+JMkBfyf4Q+JZhPWF+4k=
+github.com/udisondev/nodenet v0.3.0 h1:oZk5ilFbnoUJTlXKsthWt35OyeIAvnSv8SMpzQwF21g=
+github.com/udisondev/nodenet v0.3.0/go.mod h1:YNWVm7iXOWmJ0NBWgwEpX+b+JMkBfyf4Q+JZhPWF+4k=
 go.uber.org/mock v0.5.2 h1:LbtPTcP8A5k9WPXj54PPPbjcI4Y6lhyOZXn+VS7wNko=
 go.uber.org/mock v0.5.2/go.mod h1:wLlUxC2vVTPTaE3UD51E0BGOAElKrILxhVSDYQLld5o=
 golang.org/x/crypto v0.51.0 h1:IBPXwPfKxY7cWQZ38ZCIRPI50YLeevDLlLnyC5wRGTI=

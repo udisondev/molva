@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -43,10 +44,11 @@ func main() {
 		genSeed     = flag.Bool("gen-seed", false, "минт новой личности → печать MNEMONIC, выход")
 		restoreSeed = flag.Bool("restore-seed", false, "восстановить личность из мнемоники (stdin), выход")
 		showSeed    = flag.Bool("show-mnemonic", false, "печать мнемоники существующего seed, выход")
+		logLevel    = flag.String("log-level", logLevelFromEnv(), "уровень лога: debug|info|warn|error (env MOLVA_LOG_LEVEL)")
 	)
 	flag.Parse()
 
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	log := newLogger(*dataDir, *logLevel)
 
 	switch {
 	case *genSeed:
@@ -75,6 +77,34 @@ func main() {
 	}
 }
 
+// logLevelFromEnv — дефолт уровня лога: MOLVA_LOG_LEVEL, иначе info.
+func logLevelFromEnv() string {
+	if v := os.Getenv("MOLVA_LOG_LEVEL"); v != "" {
+		return v
+	}
+	return "info"
+}
+
+// newLogger пишет лог И в stderr, И в файл molvad.log внутри каталога данных:
+// Electron-оболочка перенаправляет stderr ядра в /dev/null, поэтому без файла
+// логи узла невозможно прочитать после запуска. Уровень задаётся флагом/env;
+// при кривом значении — info. Файл открывается на дозапись; если не удалось
+// (нет прав/каталога) — остаётся только stderr, запуск не падает.
+func newLogger(dataDir, level string) *slog.Logger {
+	var lvl slog.Level
+	if err := lvl.UnmarshalText([]byte(level)); err != nil {
+		lvl = slog.LevelInfo
+	}
+	var w io.Writer = os.Stderr
+	if err := os.MkdirAll(dataDir, 0o700); err == nil {
+		if f, err := os.OpenFile(filepath.Join(dataDir, "molvad.log"),
+			os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+			w = io.MultiWriter(os.Stderr, f)
+		}
+	}
+	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: lvl}))
+}
+
 func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace time.Duration) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -101,7 +131,12 @@ func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace ti
 	}
 	log.Info("бутстрап", "точек", len(contacts))
 
-	tr, err := quictr.Listen(id, listen)
+	// QUIC-keepalive держит NAT-маппинг живым на транспортном уровне: оверлейный
+	// ping раз в ~25 с пробивает NAT с агрессивным UDP-таймаутом ненадёжно (маппинг
+	// протухает между пингами, обратный канал умирает, ребро реапится по idle — из-за
+	// этого relay для звонка между двумя NAT-узлами не собирается). PING-кадры QUIC
+	// каждые 15 с держат и маппинг, и соединение, не мешая оверлейному keepalive.
+	tr, err := quictr.Listen(id, listen, quictr.WithKeepAlive(15*time.Second))
 	if err != nil {
 		return fmt.Errorf("транспорт: %w", err)
 	}
@@ -261,7 +296,11 @@ func parseBootstrap(s string) ([]routing.Contact, error) {
 			return nil, fmt.Errorf("bootstrap %q: %w", item, err)
 		}
 		out = append(out, routing.Contact{
-			ID:    nid,
+			ID: nid,
+			// PublicAnchor: точка входа — стабильный публично-адресуемый узел,
+			// дозваниваемся к ней напрямую и терпеливо (без fail-fast перехода в
+			// бессмысленный для публичного узла hole-punch).
+			Caps:  routing.PublicAnchor,
 			Addrs: []transport.Addr{{Net: "quic", Endpoint: hostPort}},
 		})
 	}

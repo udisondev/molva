@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	github.com/coder/websocket v1.8.14
-	github.com/udisondev/nodenet v0.2.2
+	github.com/udisondev/nodenet v0.3.0
 	golang.org/x/crypto v0.51.0
 	google.golang.org/protobuf v1.36.10
 	modernc.org/sqlite v1.52.0
