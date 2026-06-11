@@ -16,7 +16,10 @@ export enum Type {
   /** TYPE_PROBE - Presence: пустой payload, мимо outbox и истории. */
   TYPE_PROBE = 2,
   TYPE_PONG = 3,
-  /** TYPE_CONTACT_REQUEST - Знакомство: payload — открытый ContactRequest/ContactAccept. */
+  /**
+   * TYPE_CONTACT_REQUEST - Знакомство старых сборок (одобрение упразднено): входящий request
+   * просто регистрирует пира, accept — пустой сигнал совместимости.
+   */
   TYPE_CONTACT_REQUEST = 4,
   TYPE_CONTACT_ACCEPT = 5,
   /** TYPE_SESSION_INIT - Интерактивная инициализация Double Ratchet по прямому каналу. */

@@ -7,6 +7,7 @@ import { CallEvent_State, Chat_State, Message, Message_Status, Event as CoreEven
 
 export interface CallVM {
   callId: Uint8Array;
+  peer: Uint8Array;
   peerHex: string;
   state: CallEvent_State;
   reconnecting: boolean;
@@ -179,18 +180,12 @@ export async function addContact(invite: string): Promise<string | null> {
   return null;
 }
 
-export async function acceptContact(c: ChatVM): Promise<void> {
-  await client.command({ $case: "acceptContact", acceptContact: { peer: c.peer } });
-  await refreshChats();
-}
-
-export async function rejectContact(c: ChatVM): Promise<void> {
-  await client.command({ $case: "rejectContact", rejectContact: { peer: c.peer } });
-  await refreshChats();
-}
-
 export async function blockContact(c: ChatVM): Promise<void> {
-  await client.command({ $case: "blockContact", blockContact: { peer: c.peer } });
+  await blockPeer(c.peer);
+}
+
+export async function blockPeer(peer: Uint8Array): Promise<void> {
+  await client.command({ $case: "blockContact", blockContact: { peer } });
   await refreshChats();
 }
 
@@ -288,8 +283,7 @@ function handleEvent(ev: CoreEvent): void {
       });
       break;
     }
-    case "contactRequested":
-    case "contactAccepted":
+    case "contactAdded":
       void refreshChats();
       break;
     case "fileOffered": {
@@ -310,6 +304,7 @@ function handleEvent(ev: CoreEvent): void {
       const e = ev.kind.callEvent;
       const call: CallVM = {
         callId: e.callId,
+        peer: e.peer,
         peerHex: bytesToHex(e.peer),
         state: e.state,
         reconnecting: e.reconnecting,
@@ -346,6 +341,15 @@ export async function rejectCall(): Promise<void> {
   if (!state.call) return;
   const res = await client.command({ $case: "callReject", callReject: { callId: state.call.callId } });
   if (res.error) showToast(res.error);
+}
+
+// Отклонить входящий и сразу заблокировать звонящего.
+export async function rejectCallAndBlock(): Promise<void> {
+  const call = state.call;
+  if (!call) return;
+  await rejectCall();
+  await blockPeer(call.peer);
+  showToast("В ЧЁРНОМ СПИСКЕ");
 }
 
 export async function hangupCall(): Promise<void> {

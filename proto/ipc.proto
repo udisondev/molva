@@ -24,10 +24,9 @@ message Hello {
 // Команда UI → ядро. id — корреляция с CommandResult.
 message Command {
   uint64 id = 1;
+  reserved 3, 4; // accept/reject знакомства упразднены: одобрения нет
   oneof kind {
     SendText send_text = 2;
-    AcceptContact accept_contact = 3;
-    RejectContact reject_contact = 4;
     BlockContact block_contact = 5;
     UnblockContact unblock_contact = 6;
     SetAlias set_alias = 7;
@@ -91,14 +90,6 @@ message SendText {
   string text = 2;
 }
 
-message AcceptContact {
-  bytes peer = 1;
-}
-
-message RejectContact {
-  bytes peer = 1;
-}
-
 message BlockContact {
   bytes peer = 1;
 }
@@ -139,18 +130,18 @@ message MyInvite {
 
 // Событие ядро → UI.
 message Event {
+  reserved 5, 6; // contact_requested/contact_accepted: одобрения больше нет
   oneof kind {
     CommandResult command_result = 1;
     MessageReceived message_received = 2;
     MessageDelivered message_delivered = 3;
     PresenceChanged presence_changed = 4;
-    ContactRequested contact_requested = 5;
-    ContactAccepted contact_accepted = 6;
     FileOffered file_offered = 7;
     FileProgress file_progress = 8;
     FileDone file_done = 9;
     CallEvent call_event = 10;
     MediaPreset media_preset = 11;
+    ContactAdded contact_added = 12;
   }
 }
 
@@ -227,13 +218,12 @@ message Chat {
   Message last_message = 4;
   State state = 5;
 
-  // Состояние знакомства с пиром.
+  // Состояние пира: в эфире или в чёрном списке (одобрения знакомства нет).
   enum State {
+    reserved 1, 2; // упразднённые pending-состояния
     STATE_UNSPECIFIED = 0;
-    STATE_PENDING_OUT = 1; // мы отправили запрос
-    STATE_PENDING_IN = 2;  // запрос ждёт нашего решения
-    STATE_CONTACT = 3;     // принятый контакт
-    STATE_BLOCKED = 4;     // заблокирован
+    STATE_CONTACT = 3; // в эфире: переписка и звонки без одобрения
+    STATE_BLOCKED = 4; // заблокирован
   }
 }
 
@@ -280,11 +270,7 @@ message PresenceChanged {
   bool online = 2;
 }
 
-message ContactRequested {
-  bytes peer = 1;
-  string suggested_alias = 2;
-}
-
-message ContactAccepted {
+// Пир появился в эфире: добавлен по инвайту или написал первым.
+message ContactAdded {
   bytes peer = 1;
 }

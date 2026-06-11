@@ -30,7 +30,8 @@ const (
 	// Presence: пустой payload, мимо outbox и истории.
 	Type_TYPE_PROBE Type = 2
 	Type_TYPE_PONG  Type = 3
-	// Знакомство: payload — открытый ContactRequest/ContactAccept.
+	// Знакомство старых сборок (одобрение упразднено): входящий request
+	// просто регистрирует пира, accept — пустой сигнал совместимости.
 	Type_TYPE_CONTACT_REQUEST Type = 4
 	Type_TYPE_CONTACT_ACCEPT  Type = 5
 	// Интерактивная инициализация Double Ratchet по прямому каналу.

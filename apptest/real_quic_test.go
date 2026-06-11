@@ -57,22 +57,14 @@ func TestRealQUICChat(t *testing.T) {
 	peerA := peer.ID(coreA.ID())
 	peerB := peer.ID(coreB.ID())
 
-	// Знакомство по инвайту.
+	// Знакомство по инвайту: B добавил A и пишет сразу, без одобрения.
 	invite := coreA.Contacts().MyInvite("Алиса")
 	if _, err := coreB.Contacts().AddByInvite(ctx, invite); err != nil {
 		t.Fatalf("AddByInvite: %v", err)
 	}
-	waitFor(t, ctx, "запрос знакомства у A", func() bool {
-		return coreA.Contacts().State(peerB) == store.PeerPendingIn
-	})
-	if err := coreA.Contacts().Accept(ctx, peerB); err != nil {
-		t.Fatal(err)
-	}
-	waitFor(t, ctx, "контакт у B", func() bool {
-		return coreB.Contacts().State(peerA) == store.PeerContact
-	})
 
-	// Шифрованная переписка в обе стороны.
+	// Шифрованная переписка в обе стороны; первое же сообщение само
+	// регистрирует B в эфире A.
 	mid, err := coreB.Chats().SendText(ctx, peerA, "привет по настоящему QUIC")
 	if err != nil {
 		t.Fatal(err)
@@ -80,6 +72,9 @@ func TestRealQUICChat(t *testing.T) {
 	waitFor(t, ctx, "сообщение у A", func() bool {
 		m, ok, _ := coreA.Store().GetMessage(ctx, peerB, mid, false)
 		return ok && bytes.Equal(m.Body, []byte("привет по настоящему QUIC"))
+	})
+	waitFor(t, ctx, "B в эфире A", func() bool {
+		return coreA.Contacts().State(peerB) == store.PeerContact
 	})
 	mid2, err := coreA.Chats().SendText(ctx, peerB, "и тебе не хворать")
 	if err != nil {

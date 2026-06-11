@@ -25,9 +25,9 @@ const MaxTextLen = 32 << 10
 
 // Ошибки отправки.
 var (
-	ErrNotContact = errors.New("chat: писать можно только принятым контактам")
-	ErrEmptyText  = errors.New("chat: пустое сообщение")
-	ErrTooLong    = errors.New("chat: сообщение длиннее потолка")
+	ErrPeerBlocked = errors.New("chat: пир в чёрном списке")
+	ErrEmptyText   = errors.New("chat: пустое сообщение")
+	ErrTooLong     = errors.New("chat: сообщение длиннее потолка")
 	// ErrNoSession — сессии нет или она не готова к отправке; рукопожатие
 	// уже запущено, операцию надо повторить после его завершения.
 	ErrNoSession = errors.New("chat: сессия устанавливается — повторите позже")
@@ -40,27 +40,28 @@ type SealedHandler func(tx *store.Tx, from peer.ID, plaintext []byte) error
 // Manager — движок личных диалогов. Регистрация обработчиков происходит
 // в New; колбэк OnMessage — до запуска ядра.
 type Manager struct {
-	db        *store.DB
-	ob        *outbox.Manager
-	ik        *ecdh.PrivateKey
-	self      peer.ID
-	rnd       io.Reader
-	isContact func(peer.ID) bool
+	db      *store.DB
+	ob      *outbox.Manager
+	ik      *ecdh.PrivateKey
+	self    peer.ID
+	rnd     io.Reader
+	canSend func(peer.ID) bool
 
 	onMessage func(store.Message)
 	ctr       counters
 }
 
 // NewManager выводит identity-ключ ratchet-слоя из master-seed и
-// регистрирует обработчики диалоговых конвертов.
-func NewManager(db *store.DB, ob *outbox.Manager, seed [32]byte, self peer.ID, isContact func(peer.ID) bool) *Manager {
+// регистрирует обработчики диалоговых конвертов. canSend — гейт исходящих
+// (false для чёрного списка: очередь к заблокированному не растёт).
+func NewManager(db *store.DB, ob *outbox.Manager, seed [32]byte, self peer.ID, canSend func(peer.ID) bool) *Manager {
 	m := &Manager{
-		db:        db,
-		ob:        ob,
-		ik:        ratchet.IdentityFromSeed(seed),
-		self:      self,
-		rnd:       rand.Reader,
-		isContact: isContact,
+		db:      db,
+		ob:      ob,
+		ik:      ratchet.IdentityFromSeed(seed),
+		self:    self,
+		rnd:     rand.Reader,
+		canSend: canSend,
 	}
 	ob.Handle(envelope.TypeChat, m.onChat)
 	ob.Handle(envelope.TypeSessionInit, m.onSessionInit)
@@ -93,8 +94,8 @@ func (m *Manager) RegisterSealed(t envelope.Type, h SealedHandler) {
 // типа t в надёжную очередь (история не пишется). Без готовой сессии
 // запускает рукопожатие и возвращает ErrNoSession.
 func (m *Manager) SendSealed(ctx context.Context, to peer.ID, t envelope.Type, plaintext []byte) (envelope.MsgID, error) {
-	if !m.isContact(to) {
-		return envelope.MsgID{}, ErrNotContact
+	if !m.canSend(to) {
+		return envelope.MsgID{}, ErrPeerBlocked
 	}
 	mid, err := envelope.NewMsgID(m.rnd)
 	if err != nil {
@@ -150,8 +151,8 @@ func (m *Manager) SessionReady(ctx context.Context, p peer.ID) (bool, error) {
 // SendText ставит текст в доставку: история и очередь — одной
 // транзакцией. Без установленной сессии текст ждёт рукопожатия.
 func (m *Manager) SendText(ctx context.Context, to peer.ID, text string) (envelope.MsgID, error) {
-	if !m.isContact(to) {
-		return envelope.MsgID{}, ErrNotContact
+	if !m.canSend(to) {
+		return envelope.MsgID{}, ErrPeerBlocked
 	}
 	if text == "" {
 		return envelope.MsgID{}, ErrEmptyText

@@ -22,6 +22,37 @@ func sendText(t *testing.T, n *Node, to peer.ID, text string) envelope.MsgID {
 	return mid
 }
 
+// Первый контакт без одобрения: B добавил инвайт A и сразу пишет; первое
+// сообщение само регистрирует B в эфире A, ответ работает без действий A.
+func TestFirstContactNoApproval(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := NewCluster(t, 2)
+		a, b := c.Node(0), c.Node(1)
+		ctx := context.Background()
+
+		invite := a.Core().Contacts().MyInvite("Алиса")
+		if _, err := b.Core().Contacts().AddByInvite(ctx, invite); err != nil {
+			t.Fatalf("AddByInvite: %v", err)
+		}
+		if b.Core().Contacts().State(a.PeerID()) != store.PeerContact {
+			t.Fatal("инвайт обязан делать пира контактом сразу")
+		}
+
+		mid := sendText(t, b, a.PeerID(), "привет без одобрения")
+		WaitMessageStatus(t, b, a.PeerID(), mid, store.StatusDelivered, 5*time.Minute)
+		got := WaitInboundMessage(t, a, b.PeerID(), mid, time.Minute)
+		if !bytes.Equal(got.Body, []byte("привет без одобрения")) {
+			t.Fatalf("тело у A: %q", got.Body)
+		}
+		// Первое сообщение само добавило B в эфир A...
+		waitState(t, b, a, store.PeerContact)
+
+		// ...и A отвечает без каких-либо действий со своей стороны.
+		mid2 := sendText(t, a, b.PeerID(), "и тебе привет")
+		WaitInboundMessage(t, b, a.PeerID(), mid2, 5*time.Minute)
+	})
+}
+
 // Полный путь мессенджера: знакомство по инвайту, интерактивная сессия,
 // шифрованная переписка в обе стороны; plaintext не появляется на проводе.
 func TestMessengerEndToEnd(t *testing.T) {

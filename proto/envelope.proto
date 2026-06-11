@@ -29,7 +29,8 @@ enum Type {
   // Presence: пустой payload, мимо outbox и истории.
   TYPE_PROBE = 2;
   TYPE_PONG = 3;
-  // Знакомство: payload — открытый ContactRequest/ContactAccept.
+  // Знакомство старых сборок (одобрение упразднено): входящий request
+  // просто регистрирует пира, accept — пустой сигнал совместимости.
   TYPE_CONTACT_REQUEST = 4;
   TYPE_CONTACT_ACCEPT = 5;
   // Интерактивная инициализация Double Ratchet по прямому каналу.

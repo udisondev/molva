@@ -209,7 +209,6 @@ input:focus, textarea:focus {
   background: var(--amber-glow);
   border-color: var(--amber-dim);
 }
-.chatrow.pending-in { border: 1px dashed var(--amber-dim); }
 .chatrow.blocked { opacity: 0.45; }
 
 .avatar {

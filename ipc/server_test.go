@@ -41,8 +41,7 @@ func startServer(t *testing.T) (*Server, string) {
 		Transport:          tr,
 		OnMessage:          srv.OnMessage,
 		OnDelivered:        srv.OnDelivered,
-		OnContactRequest:   srv.OnContactRequest,
-		OnContactAccept:    srv.OnContactAccept,
+		OnContactAdded:     srv.OnContactAdded,
 		OnPresence:         srv.OnPresence,
 		OnFileOffered:      srv.OnFileOffered,
 		OnFileProgress:     srv.OnFileProgress,
@@ -185,8 +184,8 @@ func TestAuth(t *testing.T) {
 	}
 }
 
-// Команды против ядра: добавление контакта по инвайту появляется в списке
-// чатов, писать незнакомцу нельзя.
+// Команды против ядра: добавленный по инвайту сразу контакт — писать
+// можно немедленно, без одобрения второй стороны.
 func TestCommandsAgainstCore(t *testing.T) {
 	_, addr := startServer(t)
 	conn := dial(t, addr)
@@ -207,16 +206,19 @@ func TestCommandsAgainstCore(t *testing.T) {
 		t.Fatalf("ListChats: %s", res.Error)
 	}
 	chats := res.GetChats().GetChats()
-	if len(chats) != 1 || chats[0].State != ipcpb.Chat_STATE_PENDING_OUT || chats[0].Alias != "Сосед" {
+	if len(chats) != 1 || chats[0].State != ipcpb.Chat_STATE_CONTACT || chats[0].Alias != "Сосед" {
 		t.Fatalf("список чатов: %+v", chats)
 	}
 
-	// Писать можно только принятым контактам.
+	// Писать можно сразу: текст встаёт в очередь ожидания сессии/доставки.
 	res = command(t, conn, 3, &ipcpb.Command_SendText{SendText: &ipcpb.SendText{
-		Peer: chats[0].Peer, Text: "рано",
+		Peer: chats[0].Peer, Text: "сразу после инвайта",
 	}})
-	if res.Error == "" {
-		t.Fatal("SendText незнакомцу обязан вернуть ошибку")
+	if res.Error != "" {
+		t.Fatalf("SendText свежему контакту: %s", res.Error)
+	}
+	if res.GetSent().GetMessage().GetStatus() != ipcpb.Message_STATUS_QUEUED {
+		t.Fatalf("статус: %v, want QUEUED", res.GetSent().GetMessage().GetStatus())
 	}
 }
 

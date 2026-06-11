@@ -49,6 +49,11 @@ type FastHandler func(from peer.ID, env *envelope.Envelope)
 // Дроп — без ack'а: для отправителя неотличим от офлайна.
 type Gate func(from peer.ID, t envelope.Type) bool
 
+// PreHandle зовётся внутри транзакции каждого свежего надёжного конверта
+// до его обработчика: эффект (например, регистрация незнакомца в круге
+// общения) коммитится атомарно с эффектом самого конверта.
+type PreHandle func(tx *store.Tx, from peer.ID, t envelope.Type) error
+
 // Manager — движок надёжности. Вся регистрация (Handle, HandleFast,
 // SetOnDelivered, SetGate) — строго до Run.
 type Manager struct {
@@ -58,6 +63,7 @@ type Manager struct {
 	handlers    map[envelope.Type]Handler
 	fast        map[envelope.Type]FastHandler
 	gate        Gate
+	preHandle   PreHandle
 	onDelivered func(peer.ID, envelope.MsgID)
 	kick        chan peer.ID
 	ctr         counters
@@ -86,9 +92,13 @@ func (m *Manager) HandleFast(t envelope.Type, h FastHandler) { m.fast[t] = h }
 // SetOnDelivered — колбэк подтверждённой доставки (до Run).
 func (m *Manager) SetOnDelivered(f func(peer.ID, envelope.MsgID)) { m.onDelivered = f }
 
-// SetGate — фильтр входящих по отправителю и типу (до Run): блокировка и
-// отсев незнакомцев живут уровнем выше, движок лишь дропает со счётчиком.
+// SetGate — фильтр входящих по отправителю и типу (до Run): блокировка
+// живёт уровнем выше, движок лишь дропает со счётчиком.
 func (m *Manager) SetGate(g Gate) { m.gate = g }
+
+// SetPreHandle — общий шаг перед обработчиком каждого свежего надёжного
+// конверта, в его же транзакции (до Run).
+func (m *Manager) SetPreHandle(h PreHandle) { m.preHandle = h }
 
 // EnqueueTx ставит конверт в персистентную очередь внутри транзакции
 // вызывающего — запись истории и постановка в очередь коммитятся вместе.
@@ -363,6 +373,11 @@ func (m *Manager) handleReliable(ctx context.Context, from peer.ID, env envelope
 		}
 		if m.ctr.dedupInserts.Add(1)%pruneEvery == 0 {
 			if err := tx.DedupPrune(from, now-dedupMaxAge.Milliseconds(), dedupCap); err != nil {
+				return err
+			}
+		}
+		if m.preHandle != nil {
+			if err := m.preHandle(tx, from, env.Type); err != nil {
 				return err
 			}
 		}

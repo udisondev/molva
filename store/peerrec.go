@@ -2,18 +2,17 @@ package store
 
 import "github.com/udisondev/molva/peer"
 
-// PeerState — состояние знакомства с пиром. Блок терминален до Unblock;
-// разблокировка возвращает в незнакомцы (запись удаляется).
+// PeerState — состояние пира в круге общения. Одобрения знакомства нет:
+// пир либо в эфире (добавлен по инвайту или написал первым), либо в чёрном
+// списке. Блок терминален до Unblock; разблокировка возвращает в незнакомцы
+// (запись удаляется). Числовые значения зашиты в БД — менять нельзя
+// (1 и 2 занимали упразднённые pending-состояния).
 type PeerState uint8
 
 const (
 	// PeerNone — записи нет: незнакомец.
 	PeerNone PeerState = 0
-	// PeerPendingOut — мы отправили запрос знакомства, ждём ответа.
-	PeerPendingOut PeerState = 1
-	// PeerPendingIn — запрос пришёл нам, ждёт решения пользователя.
-	PeerPendingIn PeerState = 2
-	// PeerContact — знакомство принято: полноценный контакт.
+	// PeerContact — пир в эфире: переписка и звонки без одобрения.
 	PeerContact PeerState = 3
 	// PeerBlocked — заблокирован: весь трафик дропается без ack.
 	PeerBlocked PeerState = 4

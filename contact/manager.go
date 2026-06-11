@@ -18,14 +18,14 @@ import (
 var (
 	ErrSelf        = errors.New("contact: это твой собственный идентификатор")
 	ErrBlocked     = errors.New("contact: пир заблокирован")
-	ErrNotPending  = errors.New("contact: нет входящего запроса от этого пира")
 	ErrUnknownPeer = errors.New("contact: пир неизвестен")
 )
 
-// Manager — круг общения узла: знакомство (запрос/принятие/отказ),
-// блокировка, локальные алиасы и гейт входящего трафика. Авторитетное
-// состояние — в store; в памяти живёт снапшот для быстрых проверок на
-// цикле доставки (обновляется только после коммита).
+// Manager — круг общения узла: контакты, блокировка, локальные алиасы и
+// гейт входящего трафика. Одобрения знакомства нет: добавил инвайт — пиши
+// и звони сразу; входящее от незнакомца само появляется в эфире, защита —
+// чёрный список. Авторитетное состояние — в store; в памяти живёт снапшот
+// для быстрых проверок на цикле доставки (обновляется только после коммита).
 type Manager struct {
 	db   *store.DB
 	ob   *outbox.Manager
@@ -37,12 +37,11 @@ type Manager struct {
 
 	presence *Presence
 
-	onRequest  func(peer.ID, string)
-	onAccepted func(peer.ID)
+	onAdded func(peer.ID)
 }
 
 // NewManager загружает круг общения из store и регистрирует обработчики
-// знакомства. Вызывать до Run движка доставки.
+// устаревших конвертов знакомства. Вызывать до Run движка доставки.
 func NewManager(db *store.DB, ob *outbox.Manager, self peer.ID, sendControl outbox.SendFunc) (*Manager, error) {
 	m := &Manager{
 		db:     db,
@@ -66,10 +65,10 @@ func NewManager(db *store.DB, ob *outbox.Manager, self peer.ID, sendControl outb
 	return m, nil
 }
 
-// SetCallbacks — события для верхнего слоя (до запуска ядра).
-func (m *Manager) SetCallbacks(onRequest func(peer.ID, string), onAccepted func(peer.ID), onPresence func(peer.ID, bool)) {
-	m.onRequest = onRequest
-	m.onAccepted = onAccepted
+// SetCallbacks — события для верхнего слоя (до запуска ядра). onAdded
+// зовётся после коммита, когда пир появился в эфире (инвайт или входящее).
+func (m *Manager) SetCallbacks(onAdded func(peer.ID), onPresence func(peer.ID, bool)) {
+	m.onAdded = onAdded
 	m.presence.onChange = onPresence
 }
 
@@ -90,7 +89,7 @@ func (m *Manager) setState(p peer.ID, s store.PeerState) {
 	m.states[p] = s
 }
 
-// contactIDs — снапшот принятых контактов (для presence-обхода).
+// contactIDs — снапшот контактов (для presence-обхода).
 func (m *Manager) contactIDs() []peer.ID {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -103,30 +102,19 @@ func (m *Manager) contactIDs() []peer.ID {
 	return out
 }
 
-// Gate — фильтр входящих конвертов: блок не получает ничего, незнакомец —
-// только запрос знакомства; полный трафик — после принятия.
-func (m *Manager) Gate(from peer.ID, t envelope.Type) bool {
-	switch m.State(from) {
-	case store.PeerBlocked:
-		return false
-	case store.PeerContact:
-		return true
-	case store.PeerPendingOut:
-		// Мы запросили знакомство: ждём ack нашего запроса, его accept
-		// или встречный запрос.
-		return t == envelope.TypeAck || t == envelope.TypeContactAccept || t == envelope.TypeContactRequest
-	case store.PeerPendingIn:
-		return t == envelope.TypeAck || t == envelope.TypeContactRequest
-	default: // незнакомец
-		return t == envelope.TypeContactRequest
-	}
+// Gate — фильтр входящих конвертов: заблокированный не получает ничего
+// (дроп без ack — для него мы вечный офлайн), остальные проходят целиком.
+// Первый содержательный конверт незнакомца сам добавит его в эфир
+// (EnsureKnownTx с цикла доставки).
+func (m *Manager) Gate(from peer.ID, _ envelope.Type) bool {
+	return m.State(from) != store.PeerBlocked
 }
 
 // MyInvite — собственная инвайт-ссылка с предлагаемым алиасом.
 func (m *Manager) MyInvite(alias string) string { return EncodeInvite(m.self, alias) }
 
-// AddByInvite разбирает инвайт и отправляет запрос знакомства. Если пир
-// уже сам стучался к нам — это взаимность: принимаем сразу.
+// AddByInvite разбирает инвайт и сразу добавляет пира в контакты — писать
+// и звонить можно немедленно, одобрение второй стороны не требуется.
 func (m *Manager) AddByInvite(ctx context.Context, invite string) (peer.ID, error) {
 	p, alias, err := ParseInvite(invite)
 	if err != nil {
@@ -138,14 +126,12 @@ func (m *Manager) AddByInvite(ctx context.Context, invite string) (peer.ID, erro
 	switch m.State(p) {
 	case store.PeerBlocked:
 		return peer.ID{}, ErrBlocked
-	case store.PeerContact, store.PeerPendingOut:
-		return p, nil // уже в работе
-	case store.PeerPendingIn:
-		return p, m.Accept(ctx, p)
+	case store.PeerContact:
+		return p, nil // уже в эфире
 	}
 	now := time.Now().UnixMilli()
 	err = m.db.Tx(ctx, func(tx *store.Tx) error {
-		if err := tx.PeerPut(p, store.PeerPendingOut, now); err != nil {
+		if err := tx.PeerPut(p, store.PeerContact, now); err != nil {
 			return err
 		}
 		if alias != "" {
@@ -153,12 +139,11 @@ func (m *Manager) AddByInvite(ctx context.Context, invite string) (peer.ID, erro
 				return err
 			}
 		}
-		if err := m.enqueueSignal(tx, p, envelope.TypeContactRequest, nil); err != nil {
-			return err
-		}
 		tx.AfterCommit(func() {
-			m.setState(p, store.PeerPendingOut)
-			m.ob.Flush(p)
+			m.setState(p, store.PeerContact)
+			if m.onAdded != nil {
+				m.onAdded(p)
+			}
 		})
 		return nil
 	})
@@ -168,40 +153,38 @@ func (m *Manager) AddByInvite(ctx context.Context, invite string) (peer.ID, erro
 	return p, nil
 }
 
-// Accept принимает входящий запрос знакомства.
-func (m *Manager) Accept(ctx context.Context, p peer.ID) error {
-	if m.State(p) != store.PeerPendingIn {
-		return ErrNotPending
+// EnsureKnownTx добавляет пира в эфир при первом содержательном конверте
+// от него — внутри транзакции обработки этого конверта. Состояние читается
+// из store, а не из снапшота: блокировка, закоммиченная параллельной
+// транзакцией, не должна перетереться.
+func (m *Manager) EnsureKnownTx(tx *store.Tx, from peer.ID, suggested string) error {
+	if from == m.self {
+		return nil
+	}
+	info, exists, err := tx.PeerGet(from)
+	if err != nil {
+		return err
+	}
+	if exists && info.State != store.PeerNone {
+		return nil
 	}
 	now := time.Now().UnixMilli()
-	return m.db.Tx(ctx, func(tx *store.Tx) error {
-		if err := tx.PeerPut(p, store.PeerContact, now); err != nil {
-			return err
-		}
-		if err := m.enqueueSignal(tx, p, envelope.TypeContactAccept, nil); err != nil {
-			return err
-		}
-		tx.AfterCommit(func() {
-			m.setState(p, store.PeerContact)
-			m.ob.Flush(p)
-		})
-		return nil
-	})
-}
-
-// Reject отклоняет входящий запрос: запись стирается, пир ничего не
-// узнаёт (для него это неотличимо от офлайна).
-func (m *Manager) Reject(ctx context.Context, p peer.ID) error {
-	if m.State(p) != store.PeerPendingIn {
-		return ErrNotPending
+	if err := tx.PeerPut(from, store.PeerContact, now); err != nil {
+		return err
 	}
-	return m.db.Tx(ctx, func(tx *store.Tx) error {
-		if err := tx.PeerDelete(p); err != nil {
+	if suggested != "" {
+		if err := tx.PeerAliasSet(from, suggested, now); err != nil {
 			return err
 		}
-		tx.AfterCommit(func() { m.setState(p, store.PeerNone) })
-		return nil
+	}
+	tx.AfterCommit(func() {
+		m.setState(from, store.PeerContact)
+		m.ob.Flush(from)
+		if m.onAdded != nil {
+			m.onAdded(from)
+		}
 	})
+	return nil
 }
 
 // Block — терминальное состояние: весь трафик пира дропается без ack,
@@ -275,7 +258,7 @@ func (m *Manager) MarkActivity(p peer.ID) { m.presence.markActivity(p) }
 // RunPresence крутит probe-цикл присутствия до отмены ctx.
 func (m *Manager) RunPresence(ctx context.Context) error { return m.presence.run(ctx) }
 
-// enqueueSignal ставит служебный конверт знакомства в надёжную очередь.
+// enqueueSignal ставит служебный конверт в надёжную очередь.
 func (m *Manager) enqueueSignal(tx *store.Tx, to peer.ID, t envelope.Type, payload []byte) error {
 	mid, err := envelope.NewMsgID(m.rnd)
 	if err != nil {
@@ -284,80 +267,22 @@ func (m *Manager) enqueueSignal(tx *store.Tx, to peer.ID, t envelope.Type, paylo
 	return m.ob.EnqueueTx(tx, to, envelope.Envelope{MsgID: mid, Type: t, Payload: payload})
 }
 
-// onContactRequest — входящий запрос знакомства.
+// onContactRequest — запрос знакомства от узла старой сборки: одобрение
+// упразднено, пир просто добавляется в эфир. Ответный accept отпускает
+// его гейт ожидания (новые сборки этот конверт игнорируют молча).
 func (m *Manager) onContactRequest(tx *store.Tx, from peer.ID, env *envelope.Envelope) error {
-	suggested := clampAlias(string(env.Payload))
-	now := time.Now().UnixMilli()
-	info, exists, err := tx.PeerGet(from)
-	if err != nil {
+	if err := m.EnsureKnownTx(tx, from, clampAlias(string(env.Payload))); err != nil {
 		return err
 	}
-	state := store.PeerNone
-	if exists {
-		state = info.State
+	if err := m.enqueueSignal(tx, from, envelope.TypeContactAccept, nil); err != nil {
+		return err
 	}
-	switch state {
-	case store.PeerNone:
-		if err := tx.PeerPut(from, store.PeerPendingIn, now); err != nil {
-			return err
-		}
-		if suggested != "" {
-			if err := tx.PeerAliasSet(from, suggested, now); err != nil {
-				return err
-			}
-		}
-		tx.AfterCommit(func() {
-			m.setState(from, store.PeerPendingIn)
-			if m.onRequest != nil {
-				m.onRequest(from, suggested)
-			}
-		})
-	case store.PeerPendingOut:
-		// Взаимные запросы: обе стороны хотели — знакомство состоялось.
-		if err := tx.PeerPut(from, store.PeerContact, now); err != nil {
-			return err
-		}
-		if err := m.enqueueSignal(tx, from, envelope.TypeContactAccept, nil); err != nil {
-			return err
-		}
-		tx.AfterCommit(func() {
-			m.setState(from, store.PeerContact)
-			m.ob.Flush(from)
-			if m.onAccepted != nil {
-				m.onAccepted(from)
-			}
-		})
-	case store.PeerContact:
-		// Пир потерял наш accept (или своё состояние) — повторим.
-		if err := m.enqueueSignal(tx, from, envelope.TypeContactAccept, nil); err != nil {
-			return err
-		}
-		tx.AfterCommit(func() { m.ob.Flush(from) })
-	case store.PeerPendingIn:
-		// Повторный запрос — идемпотентно.
-	}
+	tx.AfterCommit(func() { m.ob.Flush(from) })
 	return nil
 }
 
-// onContactAccept — наш запрос принят.
-func (m *Manager) onContactAccept(tx *store.Tx, from peer.ID, env *envelope.Envelope) error {
-	info, exists, err := tx.PeerGet(from)
-	if err != nil {
-		return err
-	}
-	if !exists || info.State != store.PeerPendingOut {
-		// Гейт пропускает accept только для pending_out; здесь — повтор.
-		return nil
-	}
-	if err := tx.PeerPut(from, store.PeerContact, time.Now().UnixMilli()); err != nil {
-		return err
-	}
-	tx.AfterCommit(func() {
-		m.setState(from, store.PeerContact)
-		m.ob.Flush(from)
-		if m.onAccepted != nil {
-			m.onAccepted(from)
-		}
-	})
-	return nil
+// onContactAccept — accept от узла старой сборки: знакомство и так не
+// требует одобрения, достаточно убедиться, что пир в эфире.
+func (m *Manager) onContactAccept(tx *store.Tx, from peer.ID, _ *envelope.Envelope) error {
+	return m.EnsureKnownTx(tx, from, "")
 }

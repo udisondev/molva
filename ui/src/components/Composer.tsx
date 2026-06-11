@@ -7,7 +7,7 @@ export function Composer() {
   const [text, setText] = useState("");
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const chat = chats.find((c) => c.peerHex === selected);
-  const canWrite = chat?.state === Chat_State.STATE_CONTACT;
+  const canWrite = !!chat && chat.state !== Chat_State.STATE_BLOCKED;
 
   const submit = () => {
     const t = text.trim();
@@ -32,7 +32,7 @@ export function Composer() {
         ref={areaRef}
         rows={1}
         value={text}
-        placeholder={canWrite ? "сообщение… (Enter — в эфир)" : "связь доступна после принятия контакта"}
+        placeholder={canWrite ? "сообщение… (Enter — в эфир)" : "корреспондент в чёрном списке"}
         disabled={!canWrite}
         onChange={(e) => {
           setText(e.target.value);

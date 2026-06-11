@@ -45,15 +45,10 @@ export function App() {
                   {chat.peerHex.slice(0, 16)}…
                 </span>
                 <span className="spacer" style={{ flex: 1 }} />
-                {chat.state === Chat_State.STATE_CONTACT && (
+                {chat.state !== Chat_State.STATE_BLOCKED && (
                   <button className="ghost" title="Позвонить" onClick={() => void startCall()}>
                     ☎
                   </button>
-                )}
-                {chat.state === Chat_State.STATE_PENDING_OUT && (
-                  <span className="tag gray" style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--dim)" }}>
-                    ждёт принятия на той стороне
-                  </span>
                 )}
                 <button className="ghost" onClick={toggleDrawer}>
                   ⚙

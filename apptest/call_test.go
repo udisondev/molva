@@ -248,3 +248,44 @@ func TestCallPathReopen(t *testing.T) {
 		}
 	})
 }
+
+// Звонок сразу после добавления инвайта: DR-сессии ещё нет, offer
+// досылается сам после рукопожатия — у B звонит без каких-либо действий
+// с его стороны.
+func TestCallRightAfterInvite(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := NewCluster(t, 2)
+		a, b := c.Node(0), c.Node(1)
+		ctx := context.Background()
+
+		invite := b.Core().Contacts().MyInvite("")
+		if _, err := a.Core().Contacts().AddByInvite(ctx, invite); err != nil {
+			t.Fatalf("AddByInvite: %v", err)
+		}
+		callID, err := a.Core().Calls().Start(ctx, b.PeerID(), []string{"opus"})
+		if err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+
+		var incoming callsig.Call
+		deadline := time.Now().Add(2 * time.Minute)
+		for {
+			synctest.Wait()
+			select {
+			case incoming = <-b.CallsIn():
+			default:
+			}
+			if incoming.ID == callID {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("входящий звонок не дошёл")
+			}
+			time.Sleep(time.Second)
+		}
+		if err := b.Core().Calls().Accept(ctx, callID); err != nil {
+			t.Fatalf("Accept: %v", err)
+		}
+		waitCallState(t, a, callsig.StateActive)
+	})
+}

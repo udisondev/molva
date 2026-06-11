@@ -30,8 +30,6 @@ export interface Command {
   id: bigint;
   kind:
     | { $case: "sendText"; sendText: SendText }
-    | { $case: "acceptContact"; acceptContact: AcceptContact }
-    | { $case: "rejectContact"; rejectContact: RejectContact }
     | { $case: "blockContact"; blockContact: BlockContact }
     | { $case: "unblockContact"; unblockContact: UnblockContact }
     | { $case: "setAlias"; setAlias: SetAlias }
@@ -101,14 +99,6 @@ export interface SendText {
   text: string;
 }
 
-export interface AcceptContact {
-  peer: Uint8Array;
-}
-
-export interface RejectContact {
-  peer: Uint8Array;
-}
-
 export interface BlockContact {
   peer: Uint8Array;
 }
@@ -157,13 +147,12 @@ export interface Event {
     | { $case: "messageReceived"; messageReceived: MessageReceived }
     | { $case: "messageDelivered"; messageDelivered: MessageDelivered }
     | { $case: "presenceChanged"; presenceChanged: PresenceChanged }
-    | { $case: "contactRequested"; contactRequested: ContactRequested }
-    | { $case: "contactAccepted"; contactAccepted: ContactAccepted }
     | { $case: "fileOffered"; fileOffered: FileOffered }
     | { $case: "fileProgress"; fileProgress: FileProgress }
     | { $case: "fileDone"; fileDone: FileDone }
     | { $case: "callEvent"; callEvent: CallEvent }
     | { $case: "mediaPreset"; mediaPreset: MediaPreset }
+    | { $case: "contactAdded"; contactAdded: ContactAdded }
     | undefined;
 }
 
@@ -287,14 +276,10 @@ export interface Chat {
   state: Chat_State;
 }
 
-/** Состояние знакомства с пиром. */
+/** Состояние пира: в эфире или в чёрном списке (одобрения знакомства нет). */
 export enum Chat_State {
   STATE_UNSPECIFIED = 0,
-  /** STATE_PENDING_OUT - мы отправили запрос */
-  STATE_PENDING_OUT = 1,
-  /** STATE_PENDING_IN - запрос ждёт нашего решения */
-  STATE_PENDING_IN = 2,
-  /** STATE_CONTACT - принятый контакт */
+  /** STATE_CONTACT - в эфире: переписка и звонки без одобрения */
   STATE_CONTACT = 3,
   /** STATE_BLOCKED - заблокирован */
   STATE_BLOCKED = 4,
@@ -306,12 +291,6 @@ export function chat_StateFromJSON(object: any): Chat_State {
     case 0:
     case "STATE_UNSPECIFIED":
       return Chat_State.STATE_UNSPECIFIED;
-    case 1:
-    case "STATE_PENDING_OUT":
-      return Chat_State.STATE_PENDING_OUT;
-    case 2:
-    case "STATE_PENDING_IN":
-      return Chat_State.STATE_PENDING_IN;
     case 3:
     case "STATE_CONTACT":
       return Chat_State.STATE_CONTACT;
@@ -329,10 +308,6 @@ export function chat_StateToJSON(object: Chat_State): string {
   switch (object) {
     case Chat_State.STATE_UNSPECIFIED:
       return "STATE_UNSPECIFIED";
-    case Chat_State.STATE_PENDING_OUT:
-      return "STATE_PENDING_OUT";
-    case Chat_State.STATE_PENDING_IN:
-      return "STATE_PENDING_IN";
     case Chat_State.STATE_CONTACT:
       return "STATE_CONTACT";
     case Chat_State.STATE_BLOCKED:
@@ -431,12 +406,8 @@ export interface PresenceChanged {
   online: boolean;
 }
 
-export interface ContactRequested {
-  peer: Uint8Array;
-  suggestedAlias: string;
-}
-
-export interface ContactAccepted {
+/** Пир появился в эфире: добавлен по инвайту или написал первым. */
+export interface ContactAdded {
   peer: Uint8Array;
 }
 
@@ -627,12 +598,6 @@ export const Command: MessageFns<Command> = {
       case "sendText":
         SendText.encode(message.kind.sendText, writer.uint32(18).fork()).join();
         break;
-      case "acceptContact":
-        AcceptContact.encode(message.kind.acceptContact, writer.uint32(26).fork()).join();
-        break;
-      case "rejectContact":
-        RejectContact.encode(message.kind.rejectContact, writer.uint32(34).fork()).join();
-        break;
       case "blockContact":
         BlockContact.encode(message.kind.blockContact, writer.uint32(42).fork()).join();
         break;
@@ -709,22 +674,6 @@ export const Command: MessageFns<Command> = {
           }
 
           message.kind = { $case: "sendText", sendText: SendText.decode(reader, reader.uint32()) };
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.kind = { $case: "acceptContact", acceptContact: AcceptContact.decode(reader, reader.uint32()) };
-          continue;
-        }
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.kind = { $case: "rejectContact", rejectContact: RejectContact.decode(reader, reader.uint32()) };
           continue;
         }
         case 5: {
@@ -879,14 +828,6 @@ export const Command: MessageFns<Command> = {
         ? { $case: "sendText", sendText: SendText.fromJSON(object.sendText) }
         : isSet(object.send_text)
         ? { $case: "sendText", sendText: SendText.fromJSON(object.send_text) }
-        : isSet(object.acceptContact)
-        ? { $case: "acceptContact", acceptContact: AcceptContact.fromJSON(object.acceptContact) }
-        : isSet(object.accept_contact)
-        ? { $case: "acceptContact", acceptContact: AcceptContact.fromJSON(object.accept_contact) }
-        : isSet(object.rejectContact)
-        ? { $case: "rejectContact", rejectContact: RejectContact.fromJSON(object.rejectContact) }
-        : isSet(object.reject_contact)
-        ? { $case: "rejectContact", rejectContact: RejectContact.fromJSON(object.reject_contact) }
         : isSet(object.blockContact)
         ? { $case: "blockContact", blockContact: BlockContact.fromJSON(object.blockContact) }
         : isSet(object.block_contact)
@@ -966,10 +907,6 @@ export const Command: MessageFns<Command> = {
     }
     if (message.kind?.$case === "sendText") {
       obj.sendText = SendText.toJSON(message.kind.sendText);
-    } else if (message.kind?.$case === "acceptContact") {
-      obj.acceptContact = AcceptContact.toJSON(message.kind.acceptContact);
-    } else if (message.kind?.$case === "rejectContact") {
-      obj.rejectContact = RejectContact.toJSON(message.kind.rejectContact);
     } else if (message.kind?.$case === "blockContact") {
       obj.blockContact = BlockContact.toJSON(message.kind.blockContact);
     } else if (message.kind?.$case === "unblockContact") {
@@ -1018,24 +955,6 @@ export const Command: MessageFns<Command> = {
       case "sendText": {
         if (object.kind?.sendText !== undefined && object.kind?.sendText !== null) {
           message.kind = { $case: "sendText", sendText: SendText.fromPartial(object.kind.sendText) };
-        }
-        break;
-      }
-      case "acceptContact": {
-        if (object.kind?.acceptContact !== undefined && object.kind?.acceptContact !== null) {
-          message.kind = {
-            $case: "acceptContact",
-            acceptContact: AcceptContact.fromPartial(object.kind.acceptContact),
-          };
-        }
-        break;
-      }
-      case "rejectContact": {
-        if (object.kind?.rejectContact !== undefined && object.kind?.rejectContact !== null) {
-          message.kind = {
-            $case: "rejectContact",
-            rejectContact: RejectContact.fromPartial(object.kind.rejectContact),
-          };
         }
         break;
       }
@@ -1762,122 +1681,6 @@ export const SendText: MessageFns<SendText> = {
   },
 };
 
-function createBaseAcceptContact(): AcceptContact {
-  return { peer: new Uint8Array(0) };
-}
-
-export const AcceptContact: MessageFns<AcceptContact> = {
-  encode(message: AcceptContact, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.peer.length !== 0) {
-      writer.uint32(10).bytes(message.peer);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): AcceptContact {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseAcceptContact();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.peer = reader.bytes();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): AcceptContact {
-    return { peer: isSet(object.peer) ? bytesFromBase64(object.peer) : new Uint8Array(0) };
-  },
-
-  toJSON(message: AcceptContact): unknown {
-    const obj: any = {};
-    if (message.peer.length !== 0) {
-      obj.peer = base64FromBytes(message.peer);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<AcceptContact>, I>>(base?: I): AcceptContact {
-    return AcceptContact.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<AcceptContact>, I>>(object: I): AcceptContact {
-    const message = createBaseAcceptContact();
-    message.peer = object.peer ?? new Uint8Array(0);
-    return message;
-  },
-};
-
-function createBaseRejectContact(): RejectContact {
-  return { peer: new Uint8Array(0) };
-}
-
-export const RejectContact: MessageFns<RejectContact> = {
-  encode(message: RejectContact, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.peer.length !== 0) {
-      writer.uint32(10).bytes(message.peer);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): RejectContact {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseRejectContact();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.peer = reader.bytes();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): RejectContact {
-    return { peer: isSet(object.peer) ? bytesFromBase64(object.peer) : new Uint8Array(0) };
-  },
-
-  toJSON(message: RejectContact): unknown {
-    const obj: any = {};
-    if (message.peer.length !== 0) {
-      obj.peer = base64FromBytes(message.peer);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<RejectContact>, I>>(base?: I): RejectContact {
-    return RejectContact.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<RejectContact>, I>>(object: I): RejectContact {
-    const message = createBaseRejectContact();
-    message.peer = object.peer ?? new Uint8Array(0);
-    return message;
-  },
-};
-
 function createBaseBlockContact(): BlockContact {
   return { peer: new Uint8Array(0) };
 }
@@ -2427,12 +2230,6 @@ export const Event: MessageFns<Event> = {
       case "presenceChanged":
         PresenceChanged.encode(message.kind.presenceChanged, writer.uint32(34).fork()).join();
         break;
-      case "contactRequested":
-        ContactRequested.encode(message.kind.contactRequested, writer.uint32(42).fork()).join();
-        break;
-      case "contactAccepted":
-        ContactAccepted.encode(message.kind.contactAccepted, writer.uint32(50).fork()).join();
-        break;
       case "fileOffered":
         FileOffered.encode(message.kind.fileOffered, writer.uint32(58).fork()).join();
         break;
@@ -2447,6 +2244,9 @@ export const Event: MessageFns<Event> = {
         break;
       case "mediaPreset":
         MediaPreset.encode(message.kind.mediaPreset, writer.uint32(90).fork()).join();
+        break;
+      case "contactAdded":
+        ContactAdded.encode(message.kind.contactAdded, writer.uint32(98).fork()).join();
         break;
     }
     return writer;
@@ -2494,25 +2294,6 @@ export const Event: MessageFns<Event> = {
           message.kind = { $case: "presenceChanged", presenceChanged: PresenceChanged.decode(reader, reader.uint32()) };
           continue;
         }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.kind = {
-            $case: "contactRequested",
-            contactRequested: ContactRequested.decode(reader, reader.uint32()),
-          };
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
-
-          message.kind = { $case: "contactAccepted", contactAccepted: ContactAccepted.decode(reader, reader.uint32()) };
-          continue;
-        }
         case 7: {
           if (tag !== 58) {
             break;
@@ -2553,6 +2334,14 @@ export const Event: MessageFns<Event> = {
           message.kind = { $case: "mediaPreset", mediaPreset: MediaPreset.decode(reader, reader.uint32()) };
           continue;
         }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.kind = { $case: "contactAdded", contactAdded: ContactAdded.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2580,14 +2369,6 @@ export const Event: MessageFns<Event> = {
         ? { $case: "presenceChanged", presenceChanged: PresenceChanged.fromJSON(object.presenceChanged) }
         : isSet(object.presence_changed)
         ? { $case: "presenceChanged", presenceChanged: PresenceChanged.fromJSON(object.presence_changed) }
-        : isSet(object.contactRequested)
-        ? { $case: "contactRequested", contactRequested: ContactRequested.fromJSON(object.contactRequested) }
-        : isSet(object.contact_requested)
-        ? { $case: "contactRequested", contactRequested: ContactRequested.fromJSON(object.contact_requested) }
-        : isSet(object.contactAccepted)
-        ? { $case: "contactAccepted", contactAccepted: ContactAccepted.fromJSON(object.contactAccepted) }
-        : isSet(object.contact_accepted)
-        ? { $case: "contactAccepted", contactAccepted: ContactAccepted.fromJSON(object.contact_accepted) }
         : isSet(object.fileOffered)
         ? { $case: "fileOffered", fileOffered: FileOffered.fromJSON(object.fileOffered) }
         : isSet(object.file_offered)
@@ -2608,6 +2389,10 @@ export const Event: MessageFns<Event> = {
         ? { $case: "mediaPreset", mediaPreset: MediaPreset.fromJSON(object.mediaPreset) }
         : isSet(object.media_preset)
         ? { $case: "mediaPreset", mediaPreset: MediaPreset.fromJSON(object.media_preset) }
+        : isSet(object.contactAdded)
+        ? { $case: "contactAdded", contactAdded: ContactAdded.fromJSON(object.contactAdded) }
+        : isSet(object.contact_added)
+        ? { $case: "contactAdded", contactAdded: ContactAdded.fromJSON(object.contact_added) }
         : undefined,
     };
   },
@@ -2622,10 +2407,6 @@ export const Event: MessageFns<Event> = {
       obj.messageDelivered = MessageDelivered.toJSON(message.kind.messageDelivered);
     } else if (message.kind?.$case === "presenceChanged") {
       obj.presenceChanged = PresenceChanged.toJSON(message.kind.presenceChanged);
-    } else if (message.kind?.$case === "contactRequested") {
-      obj.contactRequested = ContactRequested.toJSON(message.kind.contactRequested);
-    } else if (message.kind?.$case === "contactAccepted") {
-      obj.contactAccepted = ContactAccepted.toJSON(message.kind.contactAccepted);
     } else if (message.kind?.$case === "fileOffered") {
       obj.fileOffered = FileOffered.toJSON(message.kind.fileOffered);
     } else if (message.kind?.$case === "fileProgress") {
@@ -2636,6 +2417,8 @@ export const Event: MessageFns<Event> = {
       obj.callEvent = CallEvent.toJSON(message.kind.callEvent);
     } else if (message.kind?.$case === "mediaPreset") {
       obj.mediaPreset = MediaPreset.toJSON(message.kind.mediaPreset);
+    } else if (message.kind?.$case === "contactAdded") {
+      obj.contactAdded = ContactAdded.toJSON(message.kind.contactAdded);
     }
     return obj;
   },
@@ -2682,24 +2465,6 @@ export const Event: MessageFns<Event> = {
         }
         break;
       }
-      case "contactRequested": {
-        if (object.kind?.contactRequested !== undefined && object.kind?.contactRequested !== null) {
-          message.kind = {
-            $case: "contactRequested",
-            contactRequested: ContactRequested.fromPartial(object.kind.contactRequested),
-          };
-        }
-        break;
-      }
-      case "contactAccepted": {
-        if (object.kind?.contactAccepted !== undefined && object.kind?.contactAccepted !== null) {
-          message.kind = {
-            $case: "contactAccepted",
-            contactAccepted: ContactAccepted.fromPartial(object.kind.contactAccepted),
-          };
-        }
-        break;
-      }
       case "fileOffered": {
         if (object.kind?.fileOffered !== undefined && object.kind?.fileOffered !== null) {
           message.kind = { $case: "fileOffered", fileOffered: FileOffered.fromPartial(object.kind.fileOffered) };
@@ -2727,6 +2492,12 @@ export const Event: MessageFns<Event> = {
       case "mediaPreset": {
         if (object.kind?.mediaPreset !== undefined && object.kind?.mediaPreset !== null) {
           message.kind = { $case: "mediaPreset", mediaPreset: MediaPreset.fromPartial(object.kind.mediaPreset) };
+        }
+        break;
+      }
+      case "contactAdded": {
+        if (object.kind?.contactAdded !== undefined && object.kind?.contactAdded !== null) {
+          message.kind = { $case: "contactAdded", contactAdded: ContactAdded.fromPartial(object.kind.contactAdded) };
         }
         break;
       }
@@ -4300,102 +4071,22 @@ export const PresenceChanged: MessageFns<PresenceChanged> = {
   },
 };
 
-function createBaseContactRequested(): ContactRequested {
-  return { peer: new Uint8Array(0), suggestedAlias: "" };
-}
-
-export const ContactRequested: MessageFns<ContactRequested> = {
-  encode(message: ContactRequested, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.peer.length !== 0) {
-      writer.uint32(10).bytes(message.peer);
-    }
-    if (message.suggestedAlias !== "") {
-      writer.uint32(18).string(message.suggestedAlias);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): ContactRequested {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseContactRequested();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.peer = reader.bytes();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.suggestedAlias = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): ContactRequested {
-    return {
-      peer: isSet(object.peer) ? bytesFromBase64(object.peer) : new Uint8Array(0),
-      suggestedAlias: isSet(object.suggestedAlias)
-        ? globalThis.String(object.suggestedAlias)
-        : isSet(object.suggested_alias)
-        ? globalThis.String(object.suggested_alias)
-        : "",
-    };
-  },
-
-  toJSON(message: ContactRequested): unknown {
-    const obj: any = {};
-    if (message.peer.length !== 0) {
-      obj.peer = base64FromBytes(message.peer);
-    }
-    if (message.suggestedAlias !== "") {
-      obj.suggestedAlias = message.suggestedAlias;
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<ContactRequested>, I>>(base?: I): ContactRequested {
-    return ContactRequested.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<ContactRequested>, I>>(object: I): ContactRequested {
-    const message = createBaseContactRequested();
-    message.peer = object.peer ?? new Uint8Array(0);
-    message.suggestedAlias = object.suggestedAlias ?? "";
-    return message;
-  },
-};
-
-function createBaseContactAccepted(): ContactAccepted {
+function createBaseContactAdded(): ContactAdded {
   return { peer: new Uint8Array(0) };
 }
 
-export const ContactAccepted: MessageFns<ContactAccepted> = {
-  encode(message: ContactAccepted, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const ContactAdded: MessageFns<ContactAdded> = {
+  encode(message: ContactAdded, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.peer.length !== 0) {
       writer.uint32(10).bytes(message.peer);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ContactAccepted {
+  decode(input: BinaryReader | Uint8Array, length?: number): ContactAdded {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseContactAccepted();
+    const message = createBaseContactAdded();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -4416,11 +4107,11 @@ export const ContactAccepted: MessageFns<ContactAccepted> = {
     return message;
   },
 
-  fromJSON(object: any): ContactAccepted {
+  fromJSON(object: any): ContactAdded {
     return { peer: isSet(object.peer) ? bytesFromBase64(object.peer) : new Uint8Array(0) };
   },
 
-  toJSON(message: ContactAccepted): unknown {
+  toJSON(message: ContactAdded): unknown {
     const obj: any = {};
     if (message.peer.length !== 0) {
       obj.peer = base64FromBytes(message.peer);
@@ -4428,11 +4119,11 @@ export const ContactAccepted: MessageFns<ContactAccepted> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ContactAccepted>, I>>(base?: I): ContactAccepted {
-    return ContactAccepted.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<ContactAdded>, I>>(base?: I): ContactAdded {
+    return ContactAdded.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ContactAccepted>, I>>(object: I): ContactAccepted {
-    const message = createBaseContactAccepted();
+  fromPartial<I extends Exact<DeepPartial<ContactAdded>, I>>(object: I): ContactAdded {
+    const message = createBaseContactAdded();
     message.peer = object.peer ?? new Uint8Array(0);
     return message;
   },

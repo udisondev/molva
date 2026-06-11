@@ -142,6 +142,11 @@ CREATE TABLE sealed_outbox (
   created_at INTEGER NOT NULL
 );
 `,
+	// v6: одобрение знакомства упразднено — pending-состояния (1: запрос
+	// отправлен, 2: запрос ждёт решения) становятся полноценными контактами.
+	`
+UPDATE peers SET state = 3 WHERE state IN (1, 2);
+`,
 }
 
 // migrate доводит схему до актуальной версии; каждая миграция — своя

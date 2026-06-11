@@ -64,8 +64,9 @@ export function AddContactModal() {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Выйти на связь</h2>
         <div className="hint">
-          Вставьте инвайт-строку вида molva://add/… — запрос знакомства уйдёт,
-          когда оба узла окажутся в эфире.
+          Вставьте инвайт-строку вида molva://add/… — корреспондент сразу
+          появится в эфире: пишите и звоните, ничьего одобрения не нужно.
+          Недоставленное доедет, когда оба узла окажутся в сети.
         </div>
         <input
           autoFocus
@@ -81,7 +82,7 @@ export function AddContactModal() {
         <div className="row">
           <button onClick={() => setModal(null)}>отмена</button>
           <button className="primary" disabled={!value.trim() || busy} onClick={() => void submit()}>
-            отправить запрос
+            добавить
           </button>
         </div>
       </div>

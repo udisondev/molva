@@ -51,17 +51,18 @@ type Config struct {
 
 	// События для слоя представления (IPC); все зовутся после коммита
 	// соответствующей транзакции.
-	OnMessage        func(store.Message)
-	OnDelivered      func(peer.ID, envelope.MsgID)
-	OnContactRequest func(peer.ID, string)
-	OnContactAccept  func(peer.ID)
-	OnPresence       func(peer.ID, bool)
-	OnFileOffered    func(peer.ID, blob.Manifest)
-	OnFileProgress   func(fileID [16]byte, have, total int)
-	OnFileDone       func(fileID [16]byte, path string)
-	OnGroupMessage   func(store.Message)
-	OnCallIncoming   func(callsig.Call)
-	OnCallState      func(callsig.Call)
+	OnMessage   func(store.Message)
+	OnDelivered func(peer.ID, envelope.MsgID)
+	// OnContactAdded — пир появился в эфире: добавлен по инвайту или
+	// написал первым (одобрения знакомства нет).
+	OnContactAdded func(peer.ID)
+	OnPresence     func(peer.ID, bool)
+	OnFileOffered  func(peer.ID, blob.Manifest)
+	OnFileProgress func(fileID [16]byte, have, total int)
+	OnFileDone     func(fileID [16]byte, path string)
+	OnGroupMessage func(store.Message)
+	OnCallIncoming func(callsig.Call)
+	OnCallState    func(callsig.Call)
 	// OnMediaFrame — входящий медиакадр звонка; payload алиасит пул
 	// транспорта, использовать строго синхронно.
 	OnMediaFrame       func(ch uint8, rx time.Time, payload []byte)
@@ -126,11 +127,17 @@ func New(cfg Config) (*Core, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	c.contacts.SetCallbacks(cfg.OnContactRequest, cfg.OnContactAccept, cfg.OnPresence)
+	c.contacts.SetCallbacks(cfg.OnContactAdded, cfg.OnPresence)
 	c.outbox.SetGate(c.contacts.Gate)
+	// Любой свежий надёжный конверт от незнакомца регистрирует его в круге
+	// общения атомарно с обработкой самого конверта: входящий диалог
+	// появляется в эфире без одобрения, защита — чёрный список.
+	c.outbox.SetPreHandle(func(tx *store.Tx, from peer.ID, _ envelope.Type) error {
+		return c.contacts.EnsureKnownTx(tx, from, "")
+	})
 
 	c.chats = chat.NewManager(db, c.outbox, cfg.Seed, self, func(p peer.ID) bool {
-		return c.contacts.State(p) == store.PeerContact
+		return c.contacts.State(p) != store.PeerBlocked
 	})
 	c.chats.SetOnMessage(cfg.OnMessage)
 

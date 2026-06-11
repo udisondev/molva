@@ -63,6 +63,13 @@ func (pr *Presence) run(ctx context.Context) error {
 func (pr *Presence) probeAll(ctx context.Context) {
 	for _, p := range pr.mgr.contactIDs() {
 		pr.sendSignal(ctx, p, envelope.TypeProbe)
+		// Молчащий контакт мог не отвечать на зонды потому, что мы для него
+		// ещё незнакомец (первый контакт: pong нам не положен). Пинок очереди
+		// раз в probe-тик ограничивает ожидание первой доставки интервалом
+		// зонда, а не разросшимся backoff'ом ретраев.
+		if !pr.online(p) {
+			pr.mgr.ob.Flush(p)
+		}
 	}
 }
 

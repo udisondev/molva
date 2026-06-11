@@ -374,17 +374,10 @@ func (s *Server) OnDelivered(p peer.ID, mid envelope.MsgID) {
 	}})
 }
 
-// OnContactRequest — входящий запрос знакомства.
-func (s *Server) OnContactRequest(p peer.ID, suggested string) {
-	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_ContactRequested{
-		ContactRequested: &ipcpb.ContactRequested{Peer: p[:], SuggestedAlias: suggested},
-	}})
-}
-
-// OnContactAccept — наше знакомство принято.
-func (s *Server) OnContactAccept(p peer.ID) {
-	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_ContactAccepted{
-		ContactAccepted: &ipcpb.ContactAccepted{Peer: p[:]},
+// OnContactAdded — пир появился в эфире (инвайт или входящее от незнакомца).
+func (s *Server) OnContactAdded(p peer.ID) {
+	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_ContactAdded{
+		ContactAdded: &ipcpb.ContactAdded{Peer: p[:]},
 	}})
 }
 
@@ -494,20 +487,6 @@ func (s *Server) dispatch(ctx context.Context, cmd *ipcpb.Command, res *ipcpb.Co
 		}
 		res.Data = &ipcpb.CommandResult_Sent{Sent: &ipcpb.SentMessage{Message: toPBMessage(m)}}
 		return nil
-
-	case *ipcpb.Command_AcceptContact:
-		p, err := parsePeer(k.AcceptContact.Peer)
-		if err != nil {
-			return err
-		}
-		return s.contacts.Accept(ctx, p)
-
-	case *ipcpb.Command_RejectContact:
-		p, err := parsePeer(k.RejectContact.Peer)
-		if err != nil {
-			return err
-		}
-		return s.contacts.Reject(ctx, p)
 
 	case *ipcpb.Command_BlockContact:
 		p, err := parsePeer(k.BlockContact.Peer)
@@ -678,10 +657,6 @@ func (s *Server) listChats(ctx context.Context) (*ipcpb.ChatList, error) {
 
 func toPBState(s store.PeerState) ipcpb.Chat_State {
 	switch s {
-	case store.PeerPendingOut:
-		return ipcpb.Chat_STATE_PENDING_OUT
-	case store.PeerPendingIn:
-		return ipcpb.Chat_STATE_PENDING_IN
 	case store.PeerContact:
 		return ipcpb.Chat_STATE_CONTACT
 	case store.PeerBlocked:

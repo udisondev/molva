@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/udisondev/molva/chat"
 	"github.com/udisondev/molva/envelope"
@@ -17,6 +18,13 @@ import (
 	"github.com/udisondev/molva/proto/callpb"
 	"github.com/udisondev/molva/store"
 	"google.golang.org/protobuf/proto"
+)
+
+const (
+	// offerRetryInterval/offerWaitMax — досылка offer'а звонка, ждущего
+	// DR-сессию: первый звонок свежему контакту начинается до рукопожатия.
+	offerRetryInterval = time.Second
+	offerWaitMax       = 30 * time.Second
 )
 
 // State — состояние звонка.
@@ -127,11 +135,62 @@ func (m *Manager) Start(ctx context.Context, to peer.ID, codecs []string) ([16]b
 		return [16]byte{}, err
 	}
 	if _, err := m.chats.SendSealed(ctx, to, envelope.TypeCallOffer, payload); err != nil {
-		m.clearIf(call)
-		return [16]byte{}, err
+		if !errors.Is(err, chat.ErrNoSession) {
+			m.clearIf(call)
+			return [16]byte{}, err
+		}
+		// Свежий контакт: рукопожатие уже запущено, offer досылается сам,
+		// как только сессия готова. Звонок уже «вызываем».
+		go m.offerWhenReady(call, payload)
 	}
 	m.emitState(*call)
 	return callID, nil
+}
+
+// offerWhenReady досылает offer звонка, ждавшего сессию. Перед каждой
+// попыткой звонок сверяется с текущим: отменённый (hangup, busy-замещение)
+// гасит досылку; offer, ушедший наперегонки с отменой, добивается hangup'ом.
+func (m *Manager) offerWhenReady(call *Call, payload []byte) {
+	deadline := time.Now().Add(offerWaitMax)
+	for {
+		time.Sleep(offerRetryInterval)
+
+		m.mu.Lock()
+		alive := m.current == call && call.State == StateRingingOut
+		m.mu.Unlock()
+		if !alive {
+			return
+		}
+
+		_, err := m.chats.SendSealed(context.Background(), call.Peer, envelope.TypeCallOffer, payload)
+		if err == nil {
+			m.mu.Lock()
+			gone := m.current != call
+			m.mu.Unlock()
+			if gone {
+				if hp, err := proto.Marshal(&callpb.Hangup{CallId: call.ID[:]}); err == nil {
+					_, _ = m.chats.SendSealed(context.Background(), call.Peer, envelope.TypeCallHangup, hp)
+				}
+			}
+			return
+		}
+		if errors.Is(err, chat.ErrNoSession) && time.Now().Before(deadline) {
+			continue
+		}
+
+		// Сессия так и не поднялась (или отправка сломалась): звонок гаснет.
+		m.mu.Lock()
+		if m.current != call {
+			m.mu.Unlock()
+			return
+		}
+		call.State = StateEnded
+		snapshot := *call
+		m.current = nil
+		m.mu.Unlock()
+		m.emitState(snapshot)
+		return
+	}
 }
 
 // clearIf снимает резерв звонка, если он всё ещё текущий (отправка offer'а

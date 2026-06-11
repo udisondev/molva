@@ -1,7 +1,8 @@
 import { CallEvent_State } from "../gen/ipc";
-import { acceptCall, hangupCall, rejectCall, useStore } from "../state/store";
+import { acceptCall, hangupCall, rejectCall, rejectCallAndBlock, useStore } from "../state/store";
 
-// Панель звонка: входящий (принять/отклонить) или активный (повесить).
+// Панель звонка: входящий (принять/отклонить/отклонить-и-в-ЧС) или
+// активный (повесить).
 export function CallBar() {
   const { call, chats } = useStore();
   if (!call) return null;
@@ -45,6 +46,9 @@ export function CallBar() {
           </button>
           <button className="danger" onClick={() => void rejectCall()}>
             отклонить
+          </button>
+          <button className="danger" title="Отклонить и заблокировать" onClick={() => void rejectCallAndBlock()}>
+            в чёрный список
           </button>
         </>
       )}
