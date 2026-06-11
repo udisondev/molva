@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package molva.ratchet.v1;
+
+option go_package = "github.com/udisondev/molva/proto/ratchetpb";
+
+// Wire-формат ratchet-слоя личных диалогов и сериализация его состояния.
+
+// Message — одно сообщение Double Ratchet: открытый заголовок + шифртекст.
+// Едет payload'ом конверта TYPE_CHAT.
+message Message {
+  bytes dh_pub = 1;     // текущий ratchet-ключ отправителя, X25519 (32 байта)
+  uint32 pn = 2;        // длина предыдущей отправной цепочки
+  uint32 n = 3;         // номер сообщения в текущей цепочке
+  bytes ciphertext = 4; // ChaCha20-Poly1305, ключ — одноразовый message key
+}
+
+// Init — первая половина интерактивной инициализации сессии
+// (payload конверта TYPE_SESSION_INIT).
+message Init {
+  bytes ik_pub = 1;     // identity-ключ ratchet-слоя инициатора (32 байта)
+  bytes eph_pub = 2;    // эфемерный X25519 инициатора (32 байта)
+  bytes session_id = 3; // 16 случайных байт, связывает init и ack
+}
+
+// InitAck — ответная половина (payload конверта TYPE_SESSION_INIT_ACK).
+message InitAck {
+  bytes ik_pub = 1;
+  bytes eph_pub = 2;
+  bytes session_id = 3;
+}
+
+// State — персистентное состояние сессии. Содержит приватные ключи —
+// хранится только шифрованным ключом из master-seed.
+message State {
+  bytes rk = 1;        // root key (32)
+  bytes dhs_priv = 2;  // наша текущая ratchet-пара, приватная половина (32)
+  bytes dhr_pub = 3;   // их текущий ratchet-ключ (32; пусто у респондента до первого приёма)
+  bytes cks = 4;       // отправная цепочка (32; пусто, пока не начата)
+  bytes ckr = 5;       // приёмная цепочка (32; пусто, пока не начата)
+  uint32 ns = 6;
+  uint32 nr = 7;
+  uint32 pn = 8;
+  bytes ad = 9;        // transcript-привязка сессии (associated data)
+  repeated SkippedKey skipped = 10;
+}
+
+// SkippedKey — отложенный ключ внеочередного сообщения.
+message SkippedKey {
+  bytes dh_pub = 1;
+  uint32 n = 2;
+  bytes mk = 3; // message key (32)
+}

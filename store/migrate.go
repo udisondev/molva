@@ -56,6 +56,21 @@ CREATE TABLE counters (
   value INTEGER NOT NULL
 ) WITHOUT ROWID;
 `,
+	// v2: состояния ratchet-сессий и незавершённые рукопожатия.
+	`
+CREATE TABLE sessions (
+  peer       BLOB PRIMARY KEY,
+  state_ct   BLOB    NOT NULL,
+  updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE handshakes (
+  peer       BLOB PRIMARY KEY,
+  hs_ct      BLOB    NOT NULL,
+  sid        BLOB    NOT NULL,
+  created_at INTEGER NOT NULL
+) WITHOUT ROWID;
+`,
 }
 
 // migrate доводит схему до актуальной версии; каждая миграция — своя
