@@ -89,11 +89,14 @@ func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace ti
 		OnContactRequest: srv.OnContactRequest,
 		OnContactAccept:  srv.OnContactAccept,
 		OnPresence:       srv.OnPresence,
+		OnFileOffered:    srv.OnFileOffered,
+		OnFileProgress:   srv.OnFileProgress,
+		OnFileDone:       srv.OnFileDone,
 	})
 	if err != nil {
 		return err
 	}
-	srv.Bind(core.Chats(), core.Contacts(), core.Store(), peer.ID(core.ID()))
+	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Store(), peer.ID(core.ID()))
 
 	port := os.Getenv("MOLVA_IPC_PORT")
 	if port == "" {

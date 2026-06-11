@@ -40,21 +40,31 @@ const (
 	Type_TYPE_CHAT Type = 8
 	// Групповое сообщение: payload — sender-key ciphertext + подпись.
 	Type_TYPE_GROUP Type = 9
+	// Файловый манифест: payload — ratchet-сообщение с Manifest внутри.
+	Type_TYPE_FILE_MANIFEST Type = 10
+	// Оконный запрос чанков: открытый ChunkRequest, мимо outbox и дедупа
+	// (pull сам ретраит — молчание лечится повтором запроса).
+	Type_TYPE_FILE_CHUNK_REQ Type = 11
+	// Чанк файла: открытый Chunk (контент зашифрован файловым ключом).
+	Type_TYPE_FILE_CHUNK Type = 12
 )
 
 // Enum value maps for Type.
 var (
 	Type_name = map[int32]string{
-		0: "TYPE_UNSPECIFIED",
-		1: "TYPE_ACK",
-		2: "TYPE_PROBE",
-		3: "TYPE_PONG",
-		4: "TYPE_CONTACT_REQUEST",
-		5: "TYPE_CONTACT_ACCEPT",
-		6: "TYPE_SESSION_INIT",
-		7: "TYPE_SESSION_INIT_ACK",
-		8: "TYPE_CHAT",
-		9: "TYPE_GROUP",
+		0:  "TYPE_UNSPECIFIED",
+		1:  "TYPE_ACK",
+		2:  "TYPE_PROBE",
+		3:  "TYPE_PONG",
+		4:  "TYPE_CONTACT_REQUEST",
+		5:  "TYPE_CONTACT_ACCEPT",
+		6:  "TYPE_SESSION_INIT",
+		7:  "TYPE_SESSION_INIT_ACK",
+		8:  "TYPE_CHAT",
+		9:  "TYPE_GROUP",
+		10: "TYPE_FILE_MANIFEST",
+		11: "TYPE_FILE_CHUNK_REQ",
+		12: "TYPE_FILE_CHUNK",
 	}
 	Type_value = map[string]int32{
 		"TYPE_UNSPECIFIED":      0,
@@ -67,6 +77,9 @@ var (
 		"TYPE_SESSION_INIT_ACK": 7,
 		"TYPE_CHAT":             8,
 		"TYPE_GROUP":            9,
+		"TYPE_FILE_MANIFEST":    10,
+		"TYPE_FILE_CHUNK_REQ":   11,
+		"TYPE_FILE_CHUNK":       12,
 	}
 )
 
@@ -194,7 +207,7 @@ const file_envelope_proto_rawDesc = "" +
 	"\bfrom_seq\x18\x03 \x01(\x04R\afromSeq\x12\x1d\n" +
 	"\n" +
 	"lamport_ts\x18\x04 \x01(\x04R\tlamportTs\x12\x18\n" +
-	"\apayload\x18\x05 \x01(\fR\apayload*\xcd\x01\n" +
+	"\apayload\x18\x05 \x01(\fR\apayload*\x93\x02\n" +
 	"\x04Type\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\f\n" +
 	"\bTYPE_ACK\x10\x01\x12\x0e\n" +
@@ -207,7 +220,11 @@ const file_envelope_proto_rawDesc = "" +
 	"\x15TYPE_SESSION_INIT_ACK\x10\a\x12\r\n" +
 	"\tTYPE_CHAT\x10\b\x12\x0e\n" +
 	"\n" +
-	"TYPE_GROUP\x10\tB-Z+github.com/udisondev/molva/proto/envelopepbb\x06proto3"
+	"TYPE_GROUP\x10\t\x12\x16\n" +
+	"\x12TYPE_FILE_MANIFEST\x10\n" +
+	"\x12\x17\n" +
+	"\x13TYPE_FILE_CHUNK_REQ\x10\v\x12\x13\n" +
+	"\x0fTYPE_FILE_CHUNK\x10\fB-Z+github.com/udisondev/molva/proto/envelopepbb\x06proto3"
 
 var (
 	file_envelope_proto_rawDescOnce sync.Once

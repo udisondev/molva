@@ -281,7 +281,30 @@ function handleEvent(ev: CoreEvent): void {
     case "contactAccepted":
       void refreshChats();
       break;
+    case "fileOffered": {
+      const f = ev.kind.fileOffered;
+      showToast(`ПРИЁМ ФАЙЛА: ${f.name}`);
+      break;
+    }
+    case "fileDone": {
+      showToast(`ФАЙЛ ПРИНЯТ: ${ev.kind.fileDone.path}`);
+      break;
+    }
   }
+}
+
+// offerFile предлагает файл текущему собеседнику.
+export async function offerFile(): Promise<void> {
+  const sel = state.selected;
+  const chat = state.chats.find((c) => c.peerHex === sel);
+  if (!chat) return;
+  const path = await window.molva.pickFile();
+  if (!path) return;
+  const res = await client.command({
+    $case: "offerFile",
+    offerFile: { peer: chat.peer, path },
+  });
+  showToast(res.error ? res.error : "ФАЙЛ ПРЕДЛОЖЕН");
 }
 
 export function startClient(): void {

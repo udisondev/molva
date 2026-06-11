@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package molva.blob.v1;
+
+option go_package = "github.com/udisondev/molva/proto/blobpb";
+
+// Передача файлов 1:1. Манифест едет через ratchet-сессию (метаданные
+// зашифрованы как контент); чанки — прямым ребром, контент каждого чанка
+// шифруется одноразовым файловым ключом из манифеста (AEAD с nonce из
+// индекса даёт целостность и привязку к позиции). Поток тянет получатель
+// оконными запросами — естественный flow control.
+
+// Manifest — описание файла (внутри ratchet-шифртекста).
+message Manifest {
+  bytes file_id = 1;    // 16 случайных байт
+  string name = 2;      // имя файла (получатель санитизирует)
+  string mime = 3;
+  uint64 size = 4;      // байты
+  uint32 chunk_size = 5; // 60 КиБ в v1
+  bytes file_key = 6;   // 32 байта, одноразовый ключ чанков
+  bytes whole_hash = 7; // BLAKE2b-256 всего файла
+}
+
+// ChunkRequest — оконный запрос недостающих чанков (получатель → отправитель).
+message ChunkRequest {
+  bytes file_id = 1;
+  repeated uint32 indexes = 2; // ≤ 64 за запрос
+}
+
+// Chunk — один чанк (отправитель → получатель), payload зашифрован
+// файловым ключом.
+message Chunk {
+  bytes file_id = 1;
+  uint32 index = 2;
+  bytes payload = 3;
+}

@@ -40,7 +40,14 @@ export interface Command {
     | { $case: "listChats"; listChats: ListChats }
     | { $case: "listMessages"; listMessages: ListMessages }
     | { $case: "myInvite"; myInvite: MyInvite }
+    | { $case: "offerFile"; offerFile: OfferFile }
     | undefined;
+}
+
+/** Предложить контакту файл по локальному пути (путь даёт диалог оболочки). */
+export interface OfferFile {
+  peer: Uint8Array;
+  path: string;
 }
 
 export interface SendText {
@@ -107,7 +114,28 @@ export interface Event {
     | { $case: "presenceChanged"; presenceChanged: PresenceChanged }
     | { $case: "contactRequested"; contactRequested: ContactRequested }
     | { $case: "contactAccepted"; contactAccepted: ContactAccepted }
+    | { $case: "fileOffered"; fileOffered: FileOffered }
+    | { $case: "fileProgress"; fileProgress: FileProgress }
+    | { $case: "fileDone"; fileDone: FileDone }
     | undefined;
+}
+
+export interface FileOffered {
+  peer: Uint8Array;
+  fileId: Uint8Array;
+  name: string;
+  size: bigint;
+}
+
+export interface FileProgress {
+  fileId: Uint8Array;
+  have: number;
+  total: number;
+}
+
+export interface FileDone {
+  fileId: Uint8Array;
+  path: string;
 }
 
 /** Ответ на Command с тем же id; для запросов — данные внутри. */
@@ -505,6 +533,9 @@ export const Command: MessageFns<Command> = {
       case "myInvite":
         MyInvite.encode(message.kind.myInvite, writer.uint32(98).fork()).join();
         break;
+      case "offerFile":
+        OfferFile.encode(message.kind.offerFile, writer.uint32(106).fork()).join();
+        break;
     }
     return writer;
   },
@@ -612,6 +643,14 @@ export const Command: MessageFns<Command> = {
           message.kind = { $case: "myInvite", myInvite: MyInvite.decode(reader, reader.uint32()) };
           continue;
         }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.kind = { $case: "offerFile", offerFile: OfferFile.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -668,6 +707,10 @@ export const Command: MessageFns<Command> = {
         ? { $case: "myInvite", myInvite: MyInvite.fromJSON(object.myInvite) }
         : isSet(object.my_invite)
         ? { $case: "myInvite", myInvite: MyInvite.fromJSON(object.my_invite) }
+        : isSet(object.offerFile)
+        ? { $case: "offerFile", offerFile: OfferFile.fromJSON(object.offerFile) }
+        : isSet(object.offer_file)
+        ? { $case: "offerFile", offerFile: OfferFile.fromJSON(object.offer_file) }
         : undefined,
     };
   },
@@ -699,6 +742,8 @@ export const Command: MessageFns<Command> = {
       obj.listMessages = ListMessages.toJSON(message.kind.listMessages);
     } else if (message.kind?.$case === "myInvite") {
       obj.myInvite = MyInvite.toJSON(message.kind.myInvite);
+    } else if (message.kind?.$case === "offerFile") {
+      obj.offerFile = OfferFile.toJSON(message.kind.offerFile);
     }
     return obj;
   },
@@ -788,7 +833,89 @@ export const Command: MessageFns<Command> = {
         }
         break;
       }
+      case "offerFile": {
+        if (object.kind?.offerFile !== undefined && object.kind?.offerFile !== null) {
+          message.kind = { $case: "offerFile", offerFile: OfferFile.fromPartial(object.kind.offerFile) };
+        }
+        break;
+      }
     }
+    return message;
+  },
+};
+
+function createBaseOfferFile(): OfferFile {
+  return { peer: new Uint8Array(0), path: "" };
+}
+
+export const OfferFile: MessageFns<OfferFile> = {
+  encode(message: OfferFile, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.peer.length !== 0) {
+      writer.uint32(10).bytes(message.peer);
+    }
+    if (message.path !== "") {
+      writer.uint32(18).string(message.path);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): OfferFile {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseOfferFile();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.peer = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.path = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): OfferFile {
+    return {
+      peer: isSet(object.peer) ? bytesFromBase64(object.peer) : new Uint8Array(0),
+      path: isSet(object.path) ? globalThis.String(object.path) : "",
+    };
+  },
+
+  toJSON(message: OfferFile): unknown {
+    const obj: any = {};
+    if (message.peer.length !== 0) {
+      obj.peer = base64FromBytes(message.peer);
+    }
+    if (message.path !== "") {
+      obj.path = message.path;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<OfferFile>, I>>(base?: I): OfferFile {
+    return OfferFile.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<OfferFile>, I>>(object: I): OfferFile {
+    const message = createBaseOfferFile();
+    message.peer = object.peer ?? new Uint8Array(0);
+    message.path = object.path ?? "";
     return message;
   },
 };
@@ -1540,6 +1667,15 @@ export const Event: MessageFns<Event> = {
       case "contactAccepted":
         ContactAccepted.encode(message.kind.contactAccepted, writer.uint32(50).fork()).join();
         break;
+      case "fileOffered":
+        FileOffered.encode(message.kind.fileOffered, writer.uint32(58).fork()).join();
+        break;
+      case "fileProgress":
+        FileProgress.encode(message.kind.fileProgress, writer.uint32(66).fork()).join();
+        break;
+      case "fileDone":
+        FileDone.encode(message.kind.fileDone, writer.uint32(74).fork()).join();
+        break;
     }
     return writer;
   },
@@ -1605,6 +1741,30 @@ export const Event: MessageFns<Event> = {
           message.kind = { $case: "contactAccepted", contactAccepted: ContactAccepted.decode(reader, reader.uint32()) };
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.kind = { $case: "fileOffered", fileOffered: FileOffered.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.kind = { $case: "fileProgress", fileProgress: FileProgress.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.kind = { $case: "fileDone", fileDone: FileDone.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1640,6 +1800,18 @@ export const Event: MessageFns<Event> = {
         ? { $case: "contactAccepted", contactAccepted: ContactAccepted.fromJSON(object.contactAccepted) }
         : isSet(object.contact_accepted)
         ? { $case: "contactAccepted", contactAccepted: ContactAccepted.fromJSON(object.contact_accepted) }
+        : isSet(object.fileOffered)
+        ? { $case: "fileOffered", fileOffered: FileOffered.fromJSON(object.fileOffered) }
+        : isSet(object.file_offered)
+        ? { $case: "fileOffered", fileOffered: FileOffered.fromJSON(object.file_offered) }
+        : isSet(object.fileProgress)
+        ? { $case: "fileProgress", fileProgress: FileProgress.fromJSON(object.fileProgress) }
+        : isSet(object.file_progress)
+        ? { $case: "fileProgress", fileProgress: FileProgress.fromJSON(object.file_progress) }
+        : isSet(object.fileDone)
+        ? { $case: "fileDone", fileDone: FileDone.fromJSON(object.fileDone) }
+        : isSet(object.file_done)
+        ? { $case: "fileDone", fileDone: FileDone.fromJSON(object.file_done) }
         : undefined,
     };
   },
@@ -1658,6 +1830,12 @@ export const Event: MessageFns<Event> = {
       obj.contactRequested = ContactRequested.toJSON(message.kind.contactRequested);
     } else if (message.kind?.$case === "contactAccepted") {
       obj.contactAccepted = ContactAccepted.toJSON(message.kind.contactAccepted);
+    } else if (message.kind?.$case === "fileOffered") {
+      obj.fileOffered = FileOffered.toJSON(message.kind.fileOffered);
+    } else if (message.kind?.$case === "fileProgress") {
+      obj.fileProgress = FileProgress.toJSON(message.kind.fileProgress);
+    } else if (message.kind?.$case === "fileDone") {
+      obj.fileDone = FileDone.toJSON(message.kind.fileDone);
     }
     return obj;
   },
@@ -1722,7 +1900,316 @@ export const Event: MessageFns<Event> = {
         }
         break;
       }
+      case "fileOffered": {
+        if (object.kind?.fileOffered !== undefined && object.kind?.fileOffered !== null) {
+          message.kind = { $case: "fileOffered", fileOffered: FileOffered.fromPartial(object.kind.fileOffered) };
+        }
+        break;
+      }
+      case "fileProgress": {
+        if (object.kind?.fileProgress !== undefined && object.kind?.fileProgress !== null) {
+          message.kind = { $case: "fileProgress", fileProgress: FileProgress.fromPartial(object.kind.fileProgress) };
+        }
+        break;
+      }
+      case "fileDone": {
+        if (object.kind?.fileDone !== undefined && object.kind?.fileDone !== null) {
+          message.kind = { $case: "fileDone", fileDone: FileDone.fromPartial(object.kind.fileDone) };
+        }
+        break;
+      }
     }
+    return message;
+  },
+};
+
+function createBaseFileOffered(): FileOffered {
+  return { peer: new Uint8Array(0), fileId: new Uint8Array(0), name: "", size: 0n };
+}
+
+export const FileOffered: MessageFns<FileOffered> = {
+  encode(message: FileOffered, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.peer.length !== 0) {
+      writer.uint32(10).bytes(message.peer);
+    }
+    if (message.fileId.length !== 0) {
+      writer.uint32(18).bytes(message.fileId);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
+    }
+    if (message.size !== 0n) {
+      if (BigInt.asUintN(64, message.size) !== message.size) {
+        throw new globalThis.Error("value provided for field message.size of type uint64 too large");
+      }
+      writer.uint32(32).uint64(message.size);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FileOffered {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFileOffered();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.peer = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.fileId = reader.bytes();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.size = reader.uint64() as bigint;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): FileOffered {
+    return {
+      peer: isSet(object.peer) ? bytesFromBase64(object.peer) : new Uint8Array(0),
+      fileId: isSet(object.fileId)
+        ? bytesFromBase64(object.fileId)
+        : isSet(object.file_id)
+        ? bytesFromBase64(object.file_id)
+        : new Uint8Array(0),
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      size: isSet(object.size) ? BigInt(object.size) : 0n,
+    };
+  },
+
+  toJSON(message: FileOffered): unknown {
+    const obj: any = {};
+    if (message.peer.length !== 0) {
+      obj.peer = base64FromBytes(message.peer);
+    }
+    if (message.fileId.length !== 0) {
+      obj.fileId = base64FromBytes(message.fileId);
+    }
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.size !== 0n) {
+      obj.size = message.size.toString();
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<FileOffered>, I>>(base?: I): FileOffered {
+    return FileOffered.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<FileOffered>, I>>(object: I): FileOffered {
+    const message = createBaseFileOffered();
+    message.peer = object.peer ?? new Uint8Array(0);
+    message.fileId = object.fileId ?? new Uint8Array(0);
+    message.name = object.name ?? "";
+    message.size = object.size ?? 0n;
+    return message;
+  },
+};
+
+function createBaseFileProgress(): FileProgress {
+  return { fileId: new Uint8Array(0), have: 0, total: 0 };
+}
+
+export const FileProgress: MessageFns<FileProgress> = {
+  encode(message: FileProgress, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.fileId.length !== 0) {
+      writer.uint32(10).bytes(message.fileId);
+    }
+    if (message.have !== 0) {
+      writer.uint32(16).uint32(message.have);
+    }
+    if (message.total !== 0) {
+      writer.uint32(24).uint32(message.total);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FileProgress {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFileProgress();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.fileId = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.have = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.total = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): FileProgress {
+    return {
+      fileId: isSet(object.fileId)
+        ? bytesFromBase64(object.fileId)
+        : isSet(object.file_id)
+        ? bytesFromBase64(object.file_id)
+        : new Uint8Array(0),
+      have: isSet(object.have) ? globalThis.Number(object.have) : 0,
+      total: isSet(object.total) ? globalThis.Number(object.total) : 0,
+    };
+  },
+
+  toJSON(message: FileProgress): unknown {
+    const obj: any = {};
+    if (message.fileId.length !== 0) {
+      obj.fileId = base64FromBytes(message.fileId);
+    }
+    if (message.have !== 0) {
+      obj.have = Math.round(message.have);
+    }
+    if (message.total !== 0) {
+      obj.total = Math.round(message.total);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<FileProgress>, I>>(base?: I): FileProgress {
+    return FileProgress.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<FileProgress>, I>>(object: I): FileProgress {
+    const message = createBaseFileProgress();
+    message.fileId = object.fileId ?? new Uint8Array(0);
+    message.have = object.have ?? 0;
+    message.total = object.total ?? 0;
+    return message;
+  },
+};
+
+function createBaseFileDone(): FileDone {
+  return { fileId: new Uint8Array(0), path: "" };
+}
+
+export const FileDone: MessageFns<FileDone> = {
+  encode(message: FileDone, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.fileId.length !== 0) {
+      writer.uint32(10).bytes(message.fileId);
+    }
+    if (message.path !== "") {
+      writer.uint32(18).string(message.path);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FileDone {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFileDone();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.fileId = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.path = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): FileDone {
+    return {
+      fileId: isSet(object.fileId)
+        ? bytesFromBase64(object.fileId)
+        : isSet(object.file_id)
+        ? bytesFromBase64(object.file_id)
+        : new Uint8Array(0),
+      path: isSet(object.path) ? globalThis.String(object.path) : "",
+    };
+  },
+
+  toJSON(message: FileDone): unknown {
+    const obj: any = {};
+    if (message.fileId.length !== 0) {
+      obj.fileId = base64FromBytes(message.fileId);
+    }
+    if (message.path !== "") {
+      obj.path = message.path;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<FileDone>, I>>(base?: I): FileDone {
+    return FileDone.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<FileDone>, I>>(object: I): FileDone {
+    const message = createBaseFileDone();
+    message.fileId = object.fileId ?? new Uint8Array(0);
+    message.path = object.path ?? "";
     return message;
   },
 };

@@ -36,7 +36,14 @@ message Command {
     ListChats list_chats = 10;
     ListMessages list_messages = 11;
     MyInvite my_invite = 12;
+    OfferFile offer_file = 13;
   }
+}
+
+// Предложить контакту файл по локальному пути (путь даёт диалог оболочки).
+message OfferFile {
+  bytes peer = 1;
+  string path = 2;
 }
 
 message SendText {
@@ -99,7 +106,28 @@ message Event {
     PresenceChanged presence_changed = 4;
     ContactRequested contact_requested = 5;
     ContactAccepted contact_accepted = 6;
+    FileOffered file_offered = 7;
+    FileProgress file_progress = 8;
+    FileDone file_done = 9;
   }
+}
+
+message FileOffered {
+  bytes peer = 1;
+  bytes file_id = 2;
+  string name = 3;
+  uint64 size = 4;
+}
+
+message FileProgress {
+  bytes file_id = 1;
+  uint32 have = 2;
+  uint32 total = 3;
+}
+
+message FileDone {
+  bytes file_id = 1;
+  string path = 2;
 }
 
 // Ответ на Command с тем же id; для запросов — данные внутри.

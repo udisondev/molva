@@ -1,6 +1,6 @@
 // Главный процесс Electron: спавнит molvad с одноразовым auth-токеном,
 // ждёт адрес IPC из его stdout и отдаёт реквизиты renderer'у по запросу.
-import { app, BrowserWindow, ipcMain, clipboard } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, clipboard } from "electron";
 import { spawn, ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createInterface } from "node:readline";
@@ -86,6 +86,10 @@ app.whenReady().then(() => {
   }));
   ipcMain.handle("molva:copy", (_ev, text: string) => {
     clipboard.writeText(String(text));
+  });
+  ipcMain.handle("molva:pickFile", async () => {
+    const res = await dialog.showOpenDialog({ properties: ["openFile"] });
+    return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0];
   });
 
   createWindow();

@@ -43,11 +43,14 @@ func startServer(t *testing.T) (*Server, string) {
 		OnContactRequest: srv.OnContactRequest,
 		OnContactAccept:  srv.OnContactAccept,
 		OnPresence:       srv.OnPresence,
+		OnFileOffered:    srv.OnFileOffered,
+		OnFileProgress:   srv.OnFileProgress,
+		OnFileDone:       srv.OnFileDone,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.Bind(core.Chats(), core.Contacts(), core.Store(), peer.ID(core.ID()))
+	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Store(), peer.ID(core.ID()))
 
 	coreDone := make(chan struct{})
 	go func() { defer close(coreDone); _ = core.Run(ctx) }()

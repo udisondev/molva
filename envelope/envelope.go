@@ -64,8 +64,14 @@ const (
 	TypeChat Type = 8
 	// TypeGroup — групповое сообщение: payload — sender-key ciphertext.
 	TypeGroup Type = 9
+	// TypeFileManifest — файловый манифест внутри ratchet-сообщения.
+	TypeFileManifest Type = 10
+	// TypeFileChunkReq — оконный запрос чанков (мимо outbox и дедупа).
+	TypeFileChunkReq Type = 11
+	// TypeFileChunk — чанк файла, контент зашифрован файловым ключом.
+	TypeFileChunk Type = 12
 
-	maxType = TypeGroup
+	maxType = TypeFileChunk
 )
 
 // Envelope — разобранный конверт. Payload для Decode — копия входа,

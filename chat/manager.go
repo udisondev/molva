@@ -28,7 +28,14 @@ var (
 	ErrNotContact = errors.New("chat: писать можно только принятым контактам")
 	ErrEmptyText  = errors.New("chat: пустое сообщение")
 	ErrTooLong    = errors.New("chat: сообщение длиннее потолка")
+	// ErrNoSession — сессии нет или она не готова к отправке; рукопожатие
+	// уже запущено, операцию надо повторить после его завершения.
+	ErrNoSession = errors.New("chat: сессия устанавливается — повторите позже")
 )
+
+// SealedHandler обрабатывает расшифрованный payload служебного конверта
+// (манифесты файлов, групповые ключи) внутри общей транзакции приёма.
+type SealedHandler func(tx *store.Tx, from peer.ID, plaintext []byte) error
 
 // Manager — движок личных диалогов. Регистрация обработчиков происходит
 // в New; колбэк OnMessage — до запуска ядра.
@@ -63,6 +70,82 @@ func NewManager(db *store.DB, ob *outbox.Manager, seed [32]byte, self peer.ID, i
 
 // SetOnMessage — колбэк принятого сообщения (после коммита).
 func (m *Manager) SetOnMessage(f func(store.Message)) { m.onMessage = f }
+
+// RegisterSealed — обработчик расшифрованных payload'ов конвертов типа t
+// (до запуска ядра). Доставка надёжная (outbox/дедуп), шифрование — DR.
+func (m *Manager) RegisterSealed(t envelope.Type, h SealedHandler) {
+	m.ob.Handle(t, func(tx *store.Tx, from peer.ID, env *envelope.Envelope) error {
+		plain, st, ok, err := m.decryptIncoming(tx, from, env)
+		if err != nil || !ok {
+			return err
+		}
+		if err := h(tx, from, plain); err != nil {
+			return err
+		}
+		if err := m.drainPending(tx, from, st); err != nil {
+			return err
+		}
+		return m.saveSession(tx, from, st)
+	})
+}
+
+// SendSealed шифрует произвольный payload сессией DR и ставит конверт
+// типа t в надёжную очередь (история не пишется). Без готовой сессии
+// запускает рукопожатие и возвращает ErrNoSession.
+func (m *Manager) SendSealed(ctx context.Context, to peer.ID, t envelope.Type, plaintext []byte) (envelope.MsgID, error) {
+	if !m.isContact(to) {
+		return envelope.MsgID{}, ErrNotContact
+	}
+	mid, err := envelope.NewMsgID(m.rnd)
+	if err != nil {
+		return envelope.MsgID{}, err
+	}
+	noSession := false
+	err = m.db.Tx(ctx, func(tx *store.Tx) error {
+		st, ok, err := m.loadSession(tx, to)
+		if err != nil {
+			return err
+		}
+		if !ok || !st.CanSend() {
+			noSession = true
+			return m.ensureHandshake(tx, to)
+		}
+		rm, err := st.Encrypt(plaintext)
+		if err != nil {
+			return err
+		}
+		payload, err := ratchet.EncodeMessage(rm)
+		if err != nil {
+			return err
+		}
+		if err := m.ob.EnqueueTx(tx, to, envelope.Envelope{MsgID: mid, Type: t, Payload: payload}); err != nil {
+			return err
+		}
+		return m.saveSession(tx, to, st)
+	})
+	if err != nil {
+		return envelope.MsgID{}, err
+	}
+	m.ob.Flush(to)
+	if noSession {
+		return envelope.MsgID{}, ErrNoSession
+	}
+	return mid, nil
+}
+
+// SessionReady — установлена ли отправная сессия с пиром.
+func (m *Manager) SessionReady(ctx context.Context, p peer.ID) (bool, error) {
+	ready := false
+	err := m.db.Tx(ctx, func(tx *store.Tx) error {
+		st, ok, err := m.loadSession(tx, p)
+		if err != nil {
+			return err
+		}
+		ready = ok && st.CanSend()
+		return nil
+	})
+	return ready, err
+}
 
 // SendText ставит текст в доставку: история и очередь — одной
 // транзакцией. Без установленной сессии текст ждёт рукопожатия.
@@ -131,28 +214,39 @@ func (m *Manager) Messages(ctx context.Context, p peer.ID, limit int) ([]store.M
 	return m.db.ListMessages(ctx, p, limit)
 }
 
-// onChat — входящее сообщение диалога.
-func (m *Manager) onChat(tx *store.Tx, from peer.ID, env *envelope.Envelope) error {
+// decryptIncoming — общий путь приёма DR-шифртекста: разбор, загрузка
+// сессии, расшифровка. ok=false — конверт съеден (мусор или рассинхрон,
+// лечение уже запущено), обрабатывать нечего.
+func (m *Manager) decryptIncoming(tx *store.Tx, from peer.ID, env *envelope.Envelope) (plain []byte, st *ratchet.State, ok bool, err error) {
 	rm, err := ratchet.DecodeMessage(env.Payload)
 	if err != nil {
 		m.ctr.malformed.Add(1)
-		return nil // мусор от аутентифицированного пира: съесть, не ретраить
+		return nil, nil, false, nil // мусор от аутентифицированного пира: съесть
 	}
-	st, ok, err := m.loadSession(tx, from)
+	st, found, err := m.loadSession(tx, from)
 	if err != nil {
-		return err
+		return nil, nil, false, err
 	}
-	if !ok {
+	if !found {
 		// Пир думает, что сессия есть, у нас её нет: съесть и восстановить
 		// связь свежим рукопожатием; конкретно это сообщение потеряно.
 		m.ctr.noSession.Add(1)
-		return m.ensureHandshake(tx, from)
+		return nil, nil, false, m.ensureHandshake(tx, from)
 	}
-	plain, err := st.Decrypt(m.rnd, rm)
+	plain, err = st.Decrypt(m.rnd, rm)
 	if err != nil {
 		// Состояния разошлись: то же лечение. Объект st выброшен.
 		m.ctr.decryptFailures.Add(1)
-		return m.ensureHandshake(tx, from)
+		return nil, nil, false, m.ensureHandshake(tx, from)
+	}
+	return plain, st, true, nil
+}
+
+// onChat — входящее сообщение диалога.
+func (m *Manager) onChat(tx *store.Tx, from peer.ID, env *envelope.Envelope) error {
+	plain, st, ok, err := m.decryptIncoming(tx, from, env)
+	if err != nil || !ok {
+		return err
 	}
 	if err := tx.LamportObserve(env.LamportTS); err != nil {
 		return err

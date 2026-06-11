@@ -3,5 +3,6 @@ interface Window {
   molva: {
     conn(): Promise<{ addr: string; token: string }>;
     copy(text: string): Promise<void>;
+    pickFile(): Promise<string | null>;
   };
 }

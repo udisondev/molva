@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Chat_State } from "../gen/ipc";
-import { sendText, useStore } from "../state/store";
+import { offerFile, sendText, useStore } from "../state/store";
 
 export function Composer() {
   const { selected, chats } = useStore();
@@ -19,6 +19,14 @@ export function Composer() {
 
   return (
     <div className="composer">
+      <button
+        className="ghost"
+        title="Передать файл"
+        disabled={!canWrite}
+        onClick={() => void offerFile()}
+      >
+        ⎙
+      </button>
       <span className="prompt">▸</span>
       <textarea
         ref={areaRef}

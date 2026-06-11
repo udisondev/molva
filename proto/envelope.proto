@@ -39,4 +39,11 @@ enum Type {
   TYPE_CHAT = 8;
   // Групповое сообщение: payload — sender-key ciphertext + подпись.
   TYPE_GROUP = 9;
+  // Файловый манифест: payload — ratchet-сообщение с Manifest внутри.
+  TYPE_FILE_MANIFEST = 10;
+  // Оконный запрос чанков: открытый ChunkRequest, мимо outbox и дедупа
+  // (pull сам ретраит — молчание лечится повтором запроса).
+  TYPE_FILE_CHUNK_REQ = 11;
+  // Чанк файла: открытый Chunk (контент зашифрован файловым ключом).
+  TYPE_FILE_CHUNK = 12;
 }

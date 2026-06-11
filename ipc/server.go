@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/udisondev/molva/blob"
 	"github.com/udisondev/molva/chat"
 	"github.com/udisondev/molva/contact"
 	"github.com/udisondev/molva/envelope"
@@ -48,6 +49,7 @@ type Server struct {
 
 	chats    *chat.Manager
 	contacts *contact.Manager
+	files    *blob.Manager
 	db       *store.DB
 	self     peer.ID
 
@@ -74,9 +76,10 @@ func NewServer(token []byte, grace time.Duration) *Server {
 }
 
 // Bind подключает подсистемы ядра (до Run).
-func (s *Server) Bind(chats *chat.Manager, contacts *contact.Manager, db *store.DB, self peer.ID) {
+func (s *Server) Bind(chats *chat.Manager, contacts *contact.Manager, files *blob.Manager, db *store.DB, self peer.ID) {
 	s.chats = chats
 	s.contacts = contacts
+	s.files = files
 	s.db = db
 	s.self = self
 }
@@ -321,6 +324,27 @@ func (s *Server) OnPresence(p peer.ID, online bool) {
 	}})
 }
 
+// OnFileOffered — контакт предложил файл (приём начинается сам).
+func (s *Server) OnFileOffered(p peer.ID, man blob.Manifest) {
+	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_FileOffered{
+		FileOffered: &ipcpb.FileOffered{Peer: p[:], FileId: man.FileID[:], Name: man.Name, Size: man.Size},
+	}})
+}
+
+// OnFileProgress — продвижение приёма файла.
+func (s *Server) OnFileProgress(fileID [16]byte, have, total int) {
+	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_FileProgress{
+		FileProgress: &ipcpb.FileProgress{FileId: fileID[:], Have: uint32(have), Total: uint32(total)},
+	}})
+}
+
+// OnFileDone — файл принят и проверен.
+func (s *Server) OnFileDone(fileID [16]byte, path string) {
+	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_FileDone{
+		FileDone: &ipcpb.FileDone{FileId: fileID[:], Path: path},
+	}})
+}
+
 // handle исполняет команду UI и собирает результат.
 func (s *Server) handle(ctx context.Context, cmd *ipcpb.Command) *ipcpb.CommandResult {
 	res := &ipcpb.CommandResult{Id: cmd.Id}
@@ -432,6 +456,14 @@ func (s *Server) dispatch(ctx context.Context, cmd *ipcpb.Command, res *ipcpb.Co
 			Invite: s.contacts.MyInvite(k.MyInvite.Alias),
 		}}
 		return nil
+
+	case *ipcpb.Command_OfferFile:
+		p, err := parsePeer(k.OfferFile.Peer)
+		if err != nil {
+			return err
+		}
+		_, err = s.files.Offer(ctx, p, k.OfferFile.Path)
+		return err
 
 	default:
 		return errors.New("ipc: неизвестная команда")

@@ -89,6 +89,21 @@ CREATE TABLE pending_chat (
   PRIMARY KEY (peer, msg_id)
 ) WITHOUT ROWID;
 `,
+	// v4: передачи файлов (манифесты, битмапы приёма, резюм).
+	`
+CREATE TABLE files (
+  file_id     BLOB PRIMARY KEY,
+  peer        BLOB    NOT NULL,
+  outgoing    INTEGER NOT NULL,
+  manifest_ct BLOB    NOT NULL,
+  path_ct     BLOB    NOT NULL,
+  bitmap      BLOB    NOT NULL,
+  done        INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+) WITHOUT ROWID;
+CREATE INDEX files_peer ON files (peer);
+`,
 }
 
 // migrate доводит схему до актуальной версии; каждая миграция — своя

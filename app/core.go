@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/udisondev/molva/blob"
 	"github.com/udisondev/molva/chat"
 	"github.com/udisondev/molva/contact"
 	"github.com/udisondev/molva/envelope"
@@ -51,6 +52,9 @@ type Config struct {
 	OnContactRequest func(peer.ID, string)
 	OnContactAccept  func(peer.ID)
 	OnPresence       func(peer.ID, bool)
+	OnFileOffered    func(peer.ID, blob.Manifest)
+	OnFileProgress   func(fileID [16]byte, have, total int)
+	OnFileDone       func(fileID [16]byte, path string)
 }
 
 // Core — работающее ядро molva: nodenet-узел, хранилище, движок надёжной
@@ -63,6 +67,7 @@ type Core struct {
 	outbox   *outbox.Manager
 	contacts *contact.Manager
 	chats    *chat.Manager
+	blobs    *blob.Manager
 	tap      func(from node.ID, payload []byte)
 }
 
@@ -107,6 +112,16 @@ func New(cfg Config) (*Core, error) {
 		return c.contacts.State(p) == store.PeerContact
 	})
 	c.chats.SetOnMessage(cfg.OnMessage)
+
+	c.blobs, err = blob.NewManager(db, c.chats, filepath.Join(cfg.DataDir, "files"),
+		c.sendQueued, c.sendControl, c.contacts.Online)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	c.blobs.SetCallbacks(cfg.OnFileOffered, cfg.OnFileProgress, cfg.OnFileDone)
+	c.outbox.HandleFast(envelope.TypeFileChunk, c.blobs.HandleChunk)
+	c.outbox.HandleFast(envelope.TypeFileChunkReq, c.blobs.HandleChunkReq)
 	return c, nil
 }
 
@@ -119,6 +134,7 @@ func (c *Core) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Go(func() { _ = c.outbox.Run(ctx) })
 	wg.Go(func() { _ = c.contacts.RunPresence(ctx) })
+	wg.Go(func() { _ = c.blobs.Run(ctx) })
 
 	nodeErr := make(chan error, 1)
 	go func() { nodeErr <- c.node.Run(ctx) }()
@@ -177,3 +193,6 @@ func (c *Core) Contacts() *contact.Manager { return c.contacts }
 
 // Chats — личные диалоги.
 func (c *Core) Chats() *chat.Manager { return c.chats }
+
+// Files — передача файлов.
+func (c *Core) Files() *blob.Manager { return c.blobs }

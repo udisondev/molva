@@ -26,6 +26,15 @@ export enum Type {
   TYPE_CHAT = 8,
   /** TYPE_GROUP - Групповое сообщение: payload — sender-key ciphertext + подпись. */
   TYPE_GROUP = 9,
+  /** TYPE_FILE_MANIFEST - Файловый манифест: payload — ratchet-сообщение с Manifest внутри. */
+  TYPE_FILE_MANIFEST = 10,
+  /**
+   * TYPE_FILE_CHUNK_REQ - Оконный запрос чанков: открытый ChunkRequest, мимо outbox и дедупа
+   * (pull сам ретраит — молчание лечится повтором запроса).
+   */
+  TYPE_FILE_CHUNK_REQ = 11,
+  /** TYPE_FILE_CHUNK - Чанк файла: открытый Chunk (контент зашифрован файловым ключом). */
+  TYPE_FILE_CHUNK = 12,
   UNRECOGNIZED = -1,
 }
 
@@ -61,6 +70,15 @@ export function typeFromJSON(object: any): Type {
     case 9:
     case "TYPE_GROUP":
       return Type.TYPE_GROUP;
+    case 10:
+    case "TYPE_FILE_MANIFEST":
+      return Type.TYPE_FILE_MANIFEST;
+    case 11:
+    case "TYPE_FILE_CHUNK_REQ":
+      return Type.TYPE_FILE_CHUNK_REQ;
+    case 12:
+    case "TYPE_FILE_CHUNK":
+      return Type.TYPE_FILE_CHUNK;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -90,6 +108,12 @@ export function typeToJSON(object: Type): string {
       return "TYPE_CHAT";
     case Type.TYPE_GROUP:
       return "TYPE_GROUP";
+    case Type.TYPE_FILE_MANIFEST:
+      return "TYPE_FILE_MANIFEST";
+    case Type.TYPE_FILE_CHUNK_REQ:
+      return "TYPE_FILE_CHUNK_REQ";
+    case Type.TYPE_FILE_CHUNK:
+      return "TYPE_FILE_CHUNK";
     case Type.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
