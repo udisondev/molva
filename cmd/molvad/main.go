@@ -102,7 +102,12 @@ func newLogger(dataDir, level string) *slog.Logger {
 			w = io.MultiWriter(os.Stderr, f)
 		}
 	}
-	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: lvl}))
+	l := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: lvl}))
+	// nodenet логирует через ГЛОБАЛЬНЫЙ slog (edge established/dropped, дозвон,
+	// reflexive, relay) — без этого его события ушли бы в дефолтный логгер мимо
+	// файла (а в Electron stderr направлен в /dev/null, и они пропадали бы вовсе).
+	slog.SetDefault(l)
+	return l
 }
 
 func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace time.Duration) error {
