@@ -45,7 +45,32 @@ export interface Command {
     | { $case: "callAccept"; callAccept: CallAccept }
     | { $case: "callReject"; callReject: CallReject }
     | { $case: "callHangup"; callHangup: CallHangup }
+    | { $case: "myIdentity"; myIdentity: MyIdentity }
+    | { $case: "listBootstrap"; listBootstrap: ListBootstrap }
+    | { $case: "addBootstrap"; addBootstrap: AddBootstrap }
+    | { $case: "removeBootstrap"; removeBootstrap: RemoveBootstrap }
     | undefined;
+}
+
+/** Запрос своего NodeID и адреса (для шеринга как точки входа бутстрапа). */
+export interface MyIdentity {
+}
+
+/**
+ * Точки входа сети. Добавление применяется на лету (узел не пересоздаётся);
+ * удаление — из файла, влияет на следующий старт (живой узел сохраняет уже
+ * изученную топологию).
+ */
+export interface ListBootstrap {
+}
+
+export interface AddBootstrap {
+  /** hexid@host:port */
+  entry: string;
+}
+
+export interface RemoveBootstrap {
+  entry: string;
 }
 
 export interface CallStart {
@@ -234,7 +259,20 @@ export interface CommandResult {
     | { $case: "messages"; messages: MessageList }
     | { $case: "sent"; sent: SentMessage }
     | { $case: "invite"; invite: Invite }
+    | { $case: "identity"; identity: Identity }
+    | { $case: "bootstrap"; bootstrap: BootstrapList }
     | undefined;
+}
+
+export interface Identity {
+  /** hex NodeID */
+  nodeId: string;
+  /** подтверждённый внешний адрес или пусто */
+  address: string;
+}
+
+export interface BootstrapList {
+  entries: string[];
 }
 
 export interface ChatList {
@@ -634,6 +672,18 @@ export const Command: MessageFns<Command> = {
       case "callHangup":
         CallHangup.encode(message.kind.callHangup, writer.uint32(138).fork()).join();
         break;
+      case "myIdentity":
+        MyIdentity.encode(message.kind.myIdentity, writer.uint32(146).fork()).join();
+        break;
+      case "listBootstrap":
+        ListBootstrap.encode(message.kind.listBootstrap, writer.uint32(154).fork()).join();
+        break;
+      case "addBootstrap":
+        AddBootstrap.encode(message.kind.addBootstrap, writer.uint32(162).fork()).join();
+        break;
+      case "removeBootstrap":
+        RemoveBootstrap.encode(message.kind.removeBootstrap, writer.uint32(170).fork()).join();
+        break;
     }
     return writer;
   },
@@ -781,6 +831,38 @@ export const Command: MessageFns<Command> = {
           message.kind = { $case: "callHangup", callHangup: CallHangup.decode(reader, reader.uint32()) };
           continue;
         }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.kind = { $case: "myIdentity", myIdentity: MyIdentity.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 19: {
+          if (tag !== 154) {
+            break;
+          }
+
+          message.kind = { $case: "listBootstrap", listBootstrap: ListBootstrap.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.kind = { $case: "addBootstrap", addBootstrap: AddBootstrap.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 21: {
+          if (tag !== 170) {
+            break;
+          }
+
+          message.kind = { $case: "removeBootstrap", removeBootstrap: RemoveBootstrap.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -857,6 +939,22 @@ export const Command: MessageFns<Command> = {
         ? { $case: "callHangup", callHangup: CallHangup.fromJSON(object.callHangup) }
         : isSet(object.call_hangup)
         ? { $case: "callHangup", callHangup: CallHangup.fromJSON(object.call_hangup) }
+        : isSet(object.myIdentity)
+        ? { $case: "myIdentity", myIdentity: MyIdentity.fromJSON(object.myIdentity) }
+        : isSet(object.my_identity)
+        ? { $case: "myIdentity", myIdentity: MyIdentity.fromJSON(object.my_identity) }
+        : isSet(object.listBootstrap)
+        ? { $case: "listBootstrap", listBootstrap: ListBootstrap.fromJSON(object.listBootstrap) }
+        : isSet(object.list_bootstrap)
+        ? { $case: "listBootstrap", listBootstrap: ListBootstrap.fromJSON(object.list_bootstrap) }
+        : isSet(object.addBootstrap)
+        ? { $case: "addBootstrap", addBootstrap: AddBootstrap.fromJSON(object.addBootstrap) }
+        : isSet(object.add_bootstrap)
+        ? { $case: "addBootstrap", addBootstrap: AddBootstrap.fromJSON(object.add_bootstrap) }
+        : isSet(object.removeBootstrap)
+        ? { $case: "removeBootstrap", removeBootstrap: RemoveBootstrap.fromJSON(object.removeBootstrap) }
+        : isSet(object.remove_bootstrap)
+        ? { $case: "removeBootstrap", removeBootstrap: RemoveBootstrap.fromJSON(object.remove_bootstrap) }
         : undefined,
     };
   },
@@ -898,6 +996,14 @@ export const Command: MessageFns<Command> = {
       obj.callReject = CallReject.toJSON(message.kind.callReject);
     } else if (message.kind?.$case === "callHangup") {
       obj.callHangup = CallHangup.toJSON(message.kind.callHangup);
+    } else if (message.kind?.$case === "myIdentity") {
+      obj.myIdentity = MyIdentity.toJSON(message.kind.myIdentity);
+    } else if (message.kind?.$case === "listBootstrap") {
+      obj.listBootstrap = ListBootstrap.toJSON(message.kind.listBootstrap);
+    } else if (message.kind?.$case === "addBootstrap") {
+      obj.addBootstrap = AddBootstrap.toJSON(message.kind.addBootstrap);
+    } else if (message.kind?.$case === "removeBootstrap") {
+      obj.removeBootstrap = RemoveBootstrap.toJSON(message.kind.removeBootstrap);
     }
     return obj;
   },
@@ -1017,7 +1123,239 @@ export const Command: MessageFns<Command> = {
         }
         break;
       }
+      case "myIdentity": {
+        if (object.kind?.myIdentity !== undefined && object.kind?.myIdentity !== null) {
+          message.kind = { $case: "myIdentity", myIdentity: MyIdentity.fromPartial(object.kind.myIdentity) };
+        }
+        break;
+      }
+      case "listBootstrap": {
+        if (object.kind?.listBootstrap !== undefined && object.kind?.listBootstrap !== null) {
+          message.kind = {
+            $case: "listBootstrap",
+            listBootstrap: ListBootstrap.fromPartial(object.kind.listBootstrap),
+          };
+        }
+        break;
+      }
+      case "addBootstrap": {
+        if (object.kind?.addBootstrap !== undefined && object.kind?.addBootstrap !== null) {
+          message.kind = { $case: "addBootstrap", addBootstrap: AddBootstrap.fromPartial(object.kind.addBootstrap) };
+        }
+        break;
+      }
+      case "removeBootstrap": {
+        if (object.kind?.removeBootstrap !== undefined && object.kind?.removeBootstrap !== null) {
+          message.kind = {
+            $case: "removeBootstrap",
+            removeBootstrap: RemoveBootstrap.fromPartial(object.kind.removeBootstrap),
+          };
+        }
+        break;
+      }
     }
+    return message;
+  },
+};
+
+function createBaseMyIdentity(): MyIdentity {
+  return {};
+}
+
+export const MyIdentity: MessageFns<MyIdentity> = {
+  encode(_: MyIdentity, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MyIdentity {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMyIdentity();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MyIdentity {
+    return {};
+  },
+
+  toJSON(_: MyIdentity): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MyIdentity>, I>>(base?: I): MyIdentity {
+    return MyIdentity.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MyIdentity>, I>>(_: I): MyIdentity {
+    const message = createBaseMyIdentity();
+    return message;
+  },
+};
+
+function createBaseListBootstrap(): ListBootstrap {
+  return {};
+}
+
+export const ListBootstrap: MessageFns<ListBootstrap> = {
+  encode(_: ListBootstrap, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListBootstrap {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListBootstrap();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): ListBootstrap {
+    return {};
+  },
+
+  toJSON(_: ListBootstrap): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListBootstrap>, I>>(base?: I): ListBootstrap {
+    return ListBootstrap.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListBootstrap>, I>>(_: I): ListBootstrap {
+    const message = createBaseListBootstrap();
+    return message;
+  },
+};
+
+function createBaseAddBootstrap(): AddBootstrap {
+  return { entry: "" };
+}
+
+export const AddBootstrap: MessageFns<AddBootstrap> = {
+  encode(message: AddBootstrap, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.entry !== "") {
+      writer.uint32(10).string(message.entry);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AddBootstrap {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAddBootstrap();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.entry = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AddBootstrap {
+    return { entry: isSet(object.entry) ? globalThis.String(object.entry) : "" };
+  },
+
+  toJSON(message: AddBootstrap): unknown {
+    const obj: any = {};
+    if (message.entry !== "") {
+      obj.entry = message.entry;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AddBootstrap>, I>>(base?: I): AddBootstrap {
+    return AddBootstrap.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AddBootstrap>, I>>(object: I): AddBootstrap {
+    const message = createBaseAddBootstrap();
+    message.entry = object.entry ?? "";
+    return message;
+  },
+};
+
+function createBaseRemoveBootstrap(): RemoveBootstrap {
+  return { entry: "" };
+}
+
+export const RemoveBootstrap: MessageFns<RemoveBootstrap> = {
+  encode(message: RemoveBootstrap, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.entry !== "") {
+      writer.uint32(10).string(message.entry);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RemoveBootstrap {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRemoveBootstrap();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.entry = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RemoveBootstrap {
+    return { entry: isSet(object.entry) ? globalThis.String(object.entry) : "" };
+  },
+
+  toJSON(message: RemoveBootstrap): unknown {
+    const obj: any = {};
+    if (message.entry !== "") {
+      obj.entry = message.entry;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RemoveBootstrap>, I>>(base?: I): RemoveBootstrap {
+    return RemoveBootstrap.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RemoveBootstrap>, I>>(object: I): RemoveBootstrap {
+    const message = createBaseRemoveBootstrap();
+    message.entry = object.entry ?? "";
     return message;
   },
 };
@@ -2886,6 +3224,12 @@ export const CommandResult: MessageFns<CommandResult> = {
       case "invite":
         Invite.encode(message.data.invite, writer.uint32(50).fork()).join();
         break;
+      case "identity":
+        Identity.encode(message.data.identity, writer.uint32(58).fork()).join();
+        break;
+      case "bootstrap":
+        BootstrapList.encode(message.data.bootstrap, writer.uint32(66).fork()).join();
+        break;
     }
     return writer;
   },
@@ -2945,6 +3289,22 @@ export const CommandResult: MessageFns<CommandResult> = {
           message.data = { $case: "invite", invite: Invite.decode(reader, reader.uint32()) };
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.data = { $case: "identity", identity: Identity.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.data = { $case: "bootstrap", bootstrap: BootstrapList.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2966,6 +3326,10 @@ export const CommandResult: MessageFns<CommandResult> = {
         ? { $case: "sent", sent: SentMessage.fromJSON(object.sent) }
         : isSet(object.invite)
         ? { $case: "invite", invite: Invite.fromJSON(object.invite) }
+        : isSet(object.identity)
+        ? { $case: "identity", identity: Identity.fromJSON(object.identity) }
+        : isSet(object.bootstrap)
+        ? { $case: "bootstrap", bootstrap: BootstrapList.fromJSON(object.bootstrap) }
         : undefined,
     };
   },
@@ -2986,6 +3350,10 @@ export const CommandResult: MessageFns<CommandResult> = {
       obj.sent = SentMessage.toJSON(message.data.sent);
     } else if (message.data?.$case === "invite") {
       obj.invite = Invite.toJSON(message.data.invite);
+    } else if (message.data?.$case === "identity") {
+      obj.identity = Identity.toJSON(message.data.identity);
+    } else if (message.data?.$case === "bootstrap") {
+      obj.bootstrap = BootstrapList.toJSON(message.data.bootstrap);
     }
     return obj;
   },
@@ -3022,7 +3390,159 @@ export const CommandResult: MessageFns<CommandResult> = {
         }
         break;
       }
+      case "identity": {
+        if (object.data?.identity !== undefined && object.data?.identity !== null) {
+          message.data = { $case: "identity", identity: Identity.fromPartial(object.data.identity) };
+        }
+        break;
+      }
+      case "bootstrap": {
+        if (object.data?.bootstrap !== undefined && object.data?.bootstrap !== null) {
+          message.data = { $case: "bootstrap", bootstrap: BootstrapList.fromPartial(object.data.bootstrap) };
+        }
+        break;
+      }
     }
+    return message;
+  },
+};
+
+function createBaseIdentity(): Identity {
+  return { nodeId: "", address: "" };
+}
+
+export const Identity: MessageFns<Identity> = {
+  encode(message: Identity, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.nodeId !== "") {
+      writer.uint32(10).string(message.nodeId);
+    }
+    if (message.address !== "") {
+      writer.uint32(18).string(message.address);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Identity {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseIdentity();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.nodeId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.address = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Identity {
+    return {
+      nodeId: isSet(object.nodeId)
+        ? globalThis.String(object.nodeId)
+        : isSet(object.node_id)
+        ? globalThis.String(object.node_id)
+        : "",
+      address: isSet(object.address) ? globalThis.String(object.address) : "",
+    };
+  },
+
+  toJSON(message: Identity): unknown {
+    const obj: any = {};
+    if (message.nodeId !== "") {
+      obj.nodeId = message.nodeId;
+    }
+    if (message.address !== "") {
+      obj.address = message.address;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Identity>, I>>(base?: I): Identity {
+    return Identity.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<Identity>, I>>(object: I): Identity {
+    const message = createBaseIdentity();
+    message.nodeId = object.nodeId ?? "";
+    message.address = object.address ?? "";
+    return message;
+  },
+};
+
+function createBaseBootstrapList(): BootstrapList {
+  return { entries: [] };
+}
+
+export const BootstrapList: MessageFns<BootstrapList> = {
+  encode(message: BootstrapList, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.entries) {
+      writer.uint32(10).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BootstrapList {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBootstrapList();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.entries.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): BootstrapList {
+    return {
+      entries: globalThis.Array.isArray(object?.entries) ? object.entries.map((e: any) => globalThis.String(e)) : [],
+    };
+  },
+
+  toJSON(message: BootstrapList): unknown {
+    const obj: any = {};
+    if (message.entries?.length) {
+      obj.entries = message.entries;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<BootstrapList>, I>>(base?: I): BootstrapList {
+    return BootstrapList.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<BootstrapList>, I>>(object: I): BootstrapList {
+    const message = createBaseBootstrapList();
+    message.entries = object.entries?.map((e) => e) || [];
     return message;
   },
 };

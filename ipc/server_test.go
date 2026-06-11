@@ -56,7 +56,7 @@ func startServer(t *testing.T) (*Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Calls(), core.Media().Send, core.Store(), peer.ID(core.ID()))
+	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Calls(), core, core.Media().Send, core.ReflexiveAddr, core.Store(), peer.ID(core.ID()))
 
 	coreDone := make(chan struct{})
 	go func() { defer close(coreDone); _ = core.Run(ctx) }()
@@ -135,6 +135,14 @@ func command(t *testing.T, conn *websocket.Conn, id uint64, kind any) *ipcpb.Com
 		cmd.Kind = k
 	case *ipcpb.Command_SendText:
 		cmd.Kind = k
+	case *ipcpb.Command_MyIdentity:
+		cmd.Kind = k
+	case *ipcpb.Command_ListBootstrap:
+		cmd.Kind = k
+	case *ipcpb.Command_AddBootstrap:
+		cmd.Kind = k
+	case *ipcpb.Command_RemoveBootstrap:
+		cmd.Kind = k
 	default:
 		t.Fatalf("неизвестный вид команды: %T", kind)
 	}
@@ -209,6 +217,53 @@ func TestCommandsAgainstCore(t *testing.T) {
 	}})
 	if res.Error == "" {
 		t.Fatal("SendText незнакомцу обязан вернуть ошибку")
+	}
+}
+
+// Свой NodeID и управление бутстрапом через IPC.
+func TestIdentityAndBootstrap(t *testing.T) {
+	_, addr := startServer(t)
+	conn := dial(t, addr)
+	defer conn.Close(websocket.StatusNormalClosure, "")
+	hello(t, conn, testToken)
+
+	// NodeID — детерминированный seed{42}.
+	res := command(t, conn, 1, &ipcpb.Command_MyIdentity{MyIdentity: &ipcpb.MyIdentity{}})
+	if res.Error != "" {
+		t.Fatalf("MyIdentity: %s", res.Error)
+	}
+	want := identity.FromSeed([identity.SeedLen]byte{42}).ID().String()
+	if got := res.GetIdentity().GetNodeId(); got != want {
+		t.Fatalf("NodeID = %s, want %s", got, want)
+	}
+
+	// Список бутстрапа пуст.
+	res = command(t, conn, 2, &ipcpb.Command_ListBootstrap{ListBootstrap: &ipcpb.ListBootstrap{}})
+	if res.Error != "" || len(res.GetBootstrap().GetEntries()) != 0 {
+		t.Fatalf("ListBootstrap: %s %v", res.Error, res.GetBootstrap().GetEntries())
+	}
+
+	// Кривая строка отвергается.
+	res = command(t, conn, 3, &ipcpb.Command_AddBootstrap{AddBootstrap: &ipcpb.AddBootstrap{Entry: "мусор"}})
+	if res.Error == "" {
+		t.Fatal("кривой бутстрап обязан вернуть ошибку")
+	}
+
+	// Валидная точка входа добавляется и попадает в список.
+	other := identity.FromSeed([identity.SeedLen]byte{99}).ID().String()
+	entry := other + "@127.0.0.1:7777"
+	res = command(t, conn, 4, &ipcpb.Command_AddBootstrap{AddBootstrap: &ipcpb.AddBootstrap{Entry: entry}})
+	if res.Error != "" {
+		t.Fatalf("AddBootstrap: %s", res.Error)
+	}
+	if got := res.GetBootstrap().GetEntries(); len(got) != 1 || got[0] != entry {
+		t.Fatalf("после добавления: %v", got)
+	}
+
+	// Удаление убирает из списка.
+	res = command(t, conn, 5, &ipcpb.Command_RemoveBootstrap{RemoveBootstrap: &ipcpb.RemoveBootstrap{Entry: entry}})
+	if res.Error != "" || len(res.GetBootstrap().GetEntries()) != 0 {
+		t.Fatalf("RemoveBootstrap: %s %v", res.Error, res.GetBootstrap().GetEntries())
 	}
 }
 

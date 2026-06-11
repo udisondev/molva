@@ -38,10 +38,37 @@ func main() {
 		bootstrap = flag.String("bootstrap", "", "точки входа сети: hexid@host:port через запятую")
 		dmin      = flag.Int("dmin", 0, "PoW-сложность сети")
 		grace     = flag.Duration("grace", 30*time.Second, "жизнь без UI до самовыключения (0 — вечно)")
+		// Короткие подкоманды управления личностью (используются Electron'ом
+		// при онбординге; делают своё дело и сразу выходят):
+		genSeed     = flag.Bool("gen-seed", false, "минт новой личности → печать MNEMONIC, выход")
+		restoreSeed = flag.Bool("restore-seed", false, "восстановить личность из мнемоники (stdin), выход")
+		showSeed    = flag.Bool("show-mnemonic", false, "печать мнемоники существующего seed, выход")
 	)
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	switch {
+	case *genSeed:
+		if err := genIdentity(*dataDir, *dmin); err != nil {
+			log.Error("создание личности", "err", err)
+			os.Exit(1)
+		}
+		return
+	case *restoreSeed:
+		if err := restoreIdentity(*dataDir, *dmin); err != nil {
+			log.Error("восстановление личности", "err", err)
+			os.Exit(1)
+		}
+		return
+	case *showSeed:
+		if err := showMnemonic(*dataDir); err != nil {
+			log.Error("показ мнемоники", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(log, *dataDir, *listen, *bootstrap, *dmin, *grace); err != nil {
 		log.Error("molvad завершился с ошибкой", "err", err)
 		os.Exit(1)
@@ -109,7 +136,7 @@ func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace ti
 	if err != nil {
 		return err
 	}
-	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Calls(), core.Media().Send, core.Store(), peer.ID(core.ID()))
+	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Calls(), core, core.Media().Send, core.ReflexiveAddr, core.Store(), peer.ID(core.ID()))
 
 	port := os.Getenv("MOLVA_IPC_PORT")
 	if port == "" {

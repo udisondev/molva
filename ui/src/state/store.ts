@@ -40,7 +40,7 @@ export interface State {
   threads: Record<string, MessageVM[]>;
   selected: string | null;
   drawer: boolean;
-  modal: "invite" | "add" | null;
+  modal: "invite" | "add" | "settings" | null;
   invite: string;
   toast: string | null;
   call: CallVM | null;
@@ -368,7 +368,39 @@ export async function offerFile(): Promise<void> {
   showToast(res.error ? res.error : "ФАЙЛ ПРЕДЛОЖЕН");
 }
 
+// Свой NodeID и адрес — для шеринга как точки входа бутстрапа.
+export async function myIdentity(): Promise<{ nodeId: string; address: string } | null> {
+  const res = await client.command({ $case: "myIdentity", myIdentity: {} });
+  if (res.error || res.data?.$case !== "identity") return null;
+  return { nodeId: res.data.identity.nodeId, address: res.data.identity.address };
+}
+
+// Точки входа сети (бутстрап) — состояние ядра.
+export async function listBootstrap(): Promise<string[]> {
+  const res = await client.command({ $case: "listBootstrap", listBootstrap: {} });
+  if (res.error || res.data?.$case !== "bootstrap") return [];
+  return res.data.bootstrap.entries;
+}
+
+// addBootstrap применяется на лету (узел не пересоздаётся); возвращает
+// ошибку формата/разбора либо обновлённый список.
+export async function addBootstrap(entry: string): Promise<{ entries?: string[]; error?: string }> {
+  const res = await client.command({ $case: "addBootstrap", addBootstrap: { entry } });
+  if (res.error) return { error: res.error };
+  return { entries: res.data?.$case === "bootstrap" ? res.data.bootstrap.entries : [] };
+}
+
+// removeBootstrap правит файл; вступит в силу при следующем старте ядра.
+export async function removeBootstrap(entry: string): Promise<string[]> {
+  const res = await client.command({ $case: "removeBootstrap", removeBootstrap: { entry } });
+  if (res.error || res.data?.$case !== "bootstrap") return [];
+  return res.data.bootstrap.entries;
+}
+
+let clientStarted = false;
 export function startClient(): void {
+  if (clientStarted) return;
+  clientStarted = true;
   client.onEvent = handleEvent;
   client.onStatus = (connected) => {
     setState({ connected });

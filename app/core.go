@@ -85,6 +85,7 @@ type Core struct {
 	calls    *callsig.Manager
 	bridge   *media.Bridge
 	onReconn func(callID [16]byte)
+	dataDir  string
 	tap      func(from node.ID, payload []byte)
 }
 
@@ -115,6 +116,7 @@ func New(cfg Config) (*Core, error) {
 
 	c := c0
 	c.id, c.node, c.db, c.tap = id, n, db, cfg.OnDelivery
+	c.dataDir = cfg.DataDir
 	c.outbox = outbox.NewManager(db, c.sendQueued, c.sendControl)
 	c.outbox.SetOnDelivered(cfg.OnDelivered)
 
@@ -267,6 +269,12 @@ func (c *Core) ID() node.ID { return c.id.ID() }
 // Node отдаёт нижележащий nodenet-узел — для композиции верхних слоёв
 // (прямые рёбра, медиа) и harness'а.
 func (c *Core) Node() *node.Node { return c.node }
+
+// ReflexiveAddr — подтверждённый внешний адрес узла (host:port) или ""
+// (ещё не известен). Нужен, чтобы поделиться собой как точкой входа.
+func (c *Core) ReflexiveAddr() string {
+	return c.node.Reflexive().Endpoint
+}
 
 // Store — хранилище узла.
 func (c *Core) Store() *store.DB { return c.db }

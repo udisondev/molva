@@ -41,7 +41,27 @@ message Command {
     CallAccept call_accept = 15;
     CallReject call_reject = 16;
     CallHangup call_hangup = 17;
+    MyIdentity my_identity = 18;
+    ListBootstrap list_bootstrap = 19;
+    AddBootstrap add_bootstrap = 20;
+    RemoveBootstrap remove_bootstrap = 21;
   }
+}
+
+// Запрос своего NodeID и адреса (для шеринга как точки входа бутстрапа).
+message MyIdentity {}
+
+// Точки входа сети. Добавление применяется на лету (узел не пересоздаётся);
+// удаление — из файла, влияет на следующий старт (живой узел сохраняет уже
+// изученную топологию).
+message ListBootstrap {}
+
+message AddBootstrap {
+  string entry = 1; // hexid@host:port
+}
+
+message RemoveBootstrap {
+  string entry = 1;
 }
 
 message CallStart {
@@ -182,7 +202,18 @@ message CommandResult {
     MessageList messages = 4;
     SentMessage sent = 5;
     Invite invite = 6;
+    Identity identity = 7;
+    BootstrapList bootstrap = 8;
   }
+}
+
+message Identity {
+  string node_id = 1; // hex NodeID
+  string address = 2; // подтверждённый внешний адрес или пусто
+}
+
+message BootstrapList {
+  repeated string entries = 1;
 }
 
 message ChatList {

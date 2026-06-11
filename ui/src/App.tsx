@@ -5,6 +5,7 @@ import { Composer } from "./components/Composer";
 import { ContactCard } from "./components/ContactCard";
 import { Thread } from "./components/Thread";
 import { AddContactModal, InviteModal } from "./components/Modals";
+import { Settings } from "./components/Settings";
 import { setModal, startCall, toggleDrawer, useStore } from "./state/store";
 
 export function App() {
@@ -21,6 +22,9 @@ export function App() {
         </button>
         <button className="primary" onClick={() => setModal("add")}>
           + на связь
+        </button>
+        <button className="ghost" title="Настройки" onClick={() => setModal("settings")}>
+          ⚙
         </button>
       </header>
       <CallBar />
@@ -75,6 +79,7 @@ export function App() {
 
       {modal === "invite" && <InviteModal />}
       {modal === "add" && <AddContactModal />}
+      {modal === "settings" && <Settings />}
       {toast && <div className="toast">{toast}</div>}
     </>
   );

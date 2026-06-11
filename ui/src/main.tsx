@@ -1,7 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { App } from "./App";
-import { startClient } from "./state/store";
+import { Root } from "./Root";
 import "./styles.css";
 
-startClient();
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<Root />);

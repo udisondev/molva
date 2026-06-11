@@ -1,6 +1,11 @@
-// Мост preload: реквизиты подключения к ядру и буфер обмена.
+// Мост preload: онбординг личности, подключение к ядру, бутстрап, буфер.
 interface Window {
   molva: {
+    status(): Promise<{ hasIdentity: boolean }>;
+    createIdentity(): Promise<{ nodeId: string; mnemonic: string }>;
+    restoreIdentity(mnemonic: string): Promise<{ nodeId: string }>;
+    exportMnemonic(): Promise<string>;
+    start(): Promise<{ addr: string; token: string }>;
     conn(): Promise<{ addr: string; token: string }>;
     copy(text: string): Promise<void>;
     pickFile(): Promise<string | null>;

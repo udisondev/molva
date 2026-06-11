@@ -73,7 +73,7 @@ func (x CallEvent_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CallEvent_State.Descriptor instead.
 func (CallEvent_State) EnumDescriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{21, 0}
+	return file_ipc_proto_rawDescGZIP(), []int{25, 0}
 }
 
 // Состояние знакомства с пиром.
@@ -129,7 +129,7 @@ func (x Chat_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Chat_State.Descriptor instead.
 func (Chat_State) EnumDescriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{27, 0}
+	return file_ipc_proto_rawDescGZIP(), []int{33, 0}
 }
 
 type Message_Status int32
@@ -181,7 +181,7 @@ func (x Message_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Message_Status.Descriptor instead.
 func (Message_Status) EnumDescriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{29, 0}
+	return file_ipc_proto_rawDescGZIP(), []int{35, 0}
 }
 
 type Frame struct {
@@ -350,6 +350,10 @@ type Command struct {
 	//	*Command_CallAccept
 	//	*Command_CallReject
 	//	*Command_CallHangup
+	//	*Command_MyIdentity
+	//	*Command_ListBootstrap
+	//	*Command_AddBootstrap
+	//	*Command_RemoveBootstrap
 	Kind          isCommand_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -543,6 +547,42 @@ func (x *Command) GetCallHangup() *CallHangup {
 	return nil
 }
 
+func (x *Command) GetMyIdentity() *MyIdentity {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_MyIdentity); ok {
+			return x.MyIdentity
+		}
+	}
+	return nil
+}
+
+func (x *Command) GetListBootstrap() *ListBootstrap {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_ListBootstrap); ok {
+			return x.ListBootstrap
+		}
+	}
+	return nil
+}
+
+func (x *Command) GetAddBootstrap() *AddBootstrap {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_AddBootstrap); ok {
+			return x.AddBootstrap
+		}
+	}
+	return nil
+}
+
+func (x *Command) GetRemoveBootstrap() *RemoveBootstrap {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_RemoveBootstrap); ok {
+			return x.RemoveBootstrap
+		}
+	}
+	return nil
+}
+
 type isCommand_Kind interface {
 	isCommand_Kind()
 }
@@ -611,6 +651,22 @@ type Command_CallHangup struct {
 	CallHangup *CallHangup `protobuf:"bytes,17,opt,name=call_hangup,json=callHangup,proto3,oneof"`
 }
 
+type Command_MyIdentity struct {
+	MyIdentity *MyIdentity `protobuf:"bytes,18,opt,name=my_identity,json=myIdentity,proto3,oneof"`
+}
+
+type Command_ListBootstrap struct {
+	ListBootstrap *ListBootstrap `protobuf:"bytes,19,opt,name=list_bootstrap,json=listBootstrap,proto3,oneof"`
+}
+
+type Command_AddBootstrap struct {
+	AddBootstrap *AddBootstrap `protobuf:"bytes,20,opt,name=add_bootstrap,json=addBootstrap,proto3,oneof"`
+}
+
+type Command_RemoveBootstrap struct {
+	RemoveBootstrap *RemoveBootstrap `protobuf:"bytes,21,opt,name=remove_bootstrap,json=removeBootstrap,proto3,oneof"`
+}
+
 func (*Command_SendText) isCommand_Kind() {}
 
 func (*Command_AcceptContact) isCommand_Kind() {}
@@ -643,6 +699,178 @@ func (*Command_CallReject) isCommand_Kind() {}
 
 func (*Command_CallHangup) isCommand_Kind() {}
 
+func (*Command_MyIdentity) isCommand_Kind() {}
+
+func (*Command_ListBootstrap) isCommand_Kind() {}
+
+func (*Command_AddBootstrap) isCommand_Kind() {}
+
+func (*Command_RemoveBootstrap) isCommand_Kind() {}
+
+// Запрос своего NodeID и адреса (для шеринга как точки входа бутстрапа).
+type MyIdentity struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MyIdentity) Reset() {
+	*x = MyIdentity{}
+	mi := &file_ipc_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MyIdentity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MyIdentity) ProtoMessage() {}
+
+func (x *MyIdentity) ProtoReflect() protoreflect.Message {
+	mi := &file_ipc_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MyIdentity.ProtoReflect.Descriptor instead.
+func (*MyIdentity) Descriptor() ([]byte, []int) {
+	return file_ipc_proto_rawDescGZIP(), []int{3}
+}
+
+// Точки входа сети. Добавление применяется на лету (узел не пересоздаётся);
+// удаление — из файла, влияет на следующий старт (живой узел сохраняет уже
+// изученную топологию).
+type ListBootstrap struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBootstrap) Reset() {
+	*x = ListBootstrap{}
+	mi := &file_ipc_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBootstrap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBootstrap) ProtoMessage() {}
+
+func (x *ListBootstrap) ProtoReflect() protoreflect.Message {
+	mi := &file_ipc_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBootstrap.ProtoReflect.Descriptor instead.
+func (*ListBootstrap) Descriptor() ([]byte, []int) {
+	return file_ipc_proto_rawDescGZIP(), []int{4}
+}
+
+type AddBootstrap struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entry         string                 `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"` // hexid@host:port
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddBootstrap) Reset() {
+	*x = AddBootstrap{}
+	mi := &file_ipc_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddBootstrap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddBootstrap) ProtoMessage() {}
+
+func (x *AddBootstrap) ProtoReflect() protoreflect.Message {
+	mi := &file_ipc_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddBootstrap.ProtoReflect.Descriptor instead.
+func (*AddBootstrap) Descriptor() ([]byte, []int) {
+	return file_ipc_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AddBootstrap) GetEntry() string {
+	if x != nil {
+		return x.Entry
+	}
+	return ""
+}
+
+type RemoveBootstrap struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entry         string                 `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveBootstrap) Reset() {
+	*x = RemoveBootstrap{}
+	mi := &file_ipc_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveBootstrap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveBootstrap) ProtoMessage() {}
+
+func (x *RemoveBootstrap) ProtoReflect() protoreflect.Message {
+	mi := &file_ipc_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveBootstrap.ProtoReflect.Descriptor instead.
+func (*RemoveBootstrap) Descriptor() ([]byte, []int) {
+	return file_ipc_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RemoveBootstrap) GetEntry() string {
+	if x != nil {
+		return x.Entry
+	}
+	return ""
+}
+
 type CallStart struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Peer          []byte                 `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
@@ -652,7 +880,7 @@ type CallStart struct {
 
 func (x *CallStart) Reset() {
 	*x = CallStart{}
-	mi := &file_ipc_proto_msgTypes[3]
+	mi := &file_ipc_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -664,7 +892,7 @@ func (x *CallStart) String() string {
 func (*CallStart) ProtoMessage() {}
 
 func (x *CallStart) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[3]
+	mi := &file_ipc_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -677,7 +905,7 @@ func (x *CallStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallStart.ProtoReflect.Descriptor instead.
 func (*CallStart) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{3}
+	return file_ipc_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CallStart) GetPeer() []byte {
@@ -696,7 +924,7 @@ type CallAccept struct {
 
 func (x *CallAccept) Reset() {
 	*x = CallAccept{}
-	mi := &file_ipc_proto_msgTypes[4]
+	mi := &file_ipc_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -708,7 +936,7 @@ func (x *CallAccept) String() string {
 func (*CallAccept) ProtoMessage() {}
 
 func (x *CallAccept) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[4]
+	mi := &file_ipc_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -721,7 +949,7 @@ func (x *CallAccept) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallAccept.ProtoReflect.Descriptor instead.
 func (*CallAccept) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{4}
+	return file_ipc_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CallAccept) GetCallId() []byte {
@@ -740,7 +968,7 @@ type CallReject struct {
 
 func (x *CallReject) Reset() {
 	*x = CallReject{}
-	mi := &file_ipc_proto_msgTypes[5]
+	mi := &file_ipc_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -752,7 +980,7 @@ func (x *CallReject) String() string {
 func (*CallReject) ProtoMessage() {}
 
 func (x *CallReject) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[5]
+	mi := &file_ipc_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -765,7 +993,7 @@ func (x *CallReject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallReject.ProtoReflect.Descriptor instead.
 func (*CallReject) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{5}
+	return file_ipc_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CallReject) GetCallId() []byte {
@@ -784,7 +1012,7 @@ type CallHangup struct {
 
 func (x *CallHangup) Reset() {
 	*x = CallHangup{}
-	mi := &file_ipc_proto_msgTypes[6]
+	mi := &file_ipc_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -796,7 +1024,7 @@ func (x *CallHangup) String() string {
 func (*CallHangup) ProtoMessage() {}
 
 func (x *CallHangup) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[6]
+	mi := &file_ipc_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -809,7 +1037,7 @@ func (x *CallHangup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallHangup.ProtoReflect.Descriptor instead.
 func (*CallHangup) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{6}
+	return file_ipc_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CallHangup) GetCallId() []byte {
@@ -830,7 +1058,7 @@ type OfferFile struct {
 
 func (x *OfferFile) Reset() {
 	*x = OfferFile{}
-	mi := &file_ipc_proto_msgTypes[7]
+	mi := &file_ipc_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -842,7 +1070,7 @@ func (x *OfferFile) String() string {
 func (*OfferFile) ProtoMessage() {}
 
 func (x *OfferFile) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[7]
+	mi := &file_ipc_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -855,7 +1083,7 @@ func (x *OfferFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferFile.ProtoReflect.Descriptor instead.
 func (*OfferFile) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{7}
+	return file_ipc_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OfferFile) GetPeer() []byte {
@@ -882,7 +1110,7 @@ type SendText struct {
 
 func (x *SendText) Reset() {
 	*x = SendText{}
-	mi := &file_ipc_proto_msgTypes[8]
+	mi := &file_ipc_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -894,7 +1122,7 @@ func (x *SendText) String() string {
 func (*SendText) ProtoMessage() {}
 
 func (x *SendText) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[8]
+	mi := &file_ipc_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -907,7 +1135,7 @@ func (x *SendText) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendText.ProtoReflect.Descriptor instead.
 func (*SendText) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{8}
+	return file_ipc_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SendText) GetPeer() []byte {
@@ -933,7 +1161,7 @@ type AcceptContact struct {
 
 func (x *AcceptContact) Reset() {
 	*x = AcceptContact{}
-	mi := &file_ipc_proto_msgTypes[9]
+	mi := &file_ipc_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -945,7 +1173,7 @@ func (x *AcceptContact) String() string {
 func (*AcceptContact) ProtoMessage() {}
 
 func (x *AcceptContact) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[9]
+	mi := &file_ipc_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -958,7 +1186,7 @@ func (x *AcceptContact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptContact.ProtoReflect.Descriptor instead.
 func (*AcceptContact) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{9}
+	return file_ipc_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AcceptContact) GetPeer() []byte {
@@ -977,7 +1205,7 @@ type RejectContact struct {
 
 func (x *RejectContact) Reset() {
 	*x = RejectContact{}
-	mi := &file_ipc_proto_msgTypes[10]
+	mi := &file_ipc_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -989,7 +1217,7 @@ func (x *RejectContact) String() string {
 func (*RejectContact) ProtoMessage() {}
 
 func (x *RejectContact) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[10]
+	mi := &file_ipc_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1002,7 +1230,7 @@ func (x *RejectContact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectContact.ProtoReflect.Descriptor instead.
 func (*RejectContact) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{10}
+	return file_ipc_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RejectContact) GetPeer() []byte {
@@ -1021,7 +1249,7 @@ type BlockContact struct {
 
 func (x *BlockContact) Reset() {
 	*x = BlockContact{}
-	mi := &file_ipc_proto_msgTypes[11]
+	mi := &file_ipc_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1033,7 +1261,7 @@ func (x *BlockContact) String() string {
 func (*BlockContact) ProtoMessage() {}
 
 func (x *BlockContact) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[11]
+	mi := &file_ipc_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1046,7 +1274,7 @@ func (x *BlockContact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockContact.ProtoReflect.Descriptor instead.
 func (*BlockContact) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{11}
+	return file_ipc_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *BlockContact) GetPeer() []byte {
@@ -1065,7 +1293,7 @@ type UnblockContact struct {
 
 func (x *UnblockContact) Reset() {
 	*x = UnblockContact{}
-	mi := &file_ipc_proto_msgTypes[12]
+	mi := &file_ipc_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1077,7 +1305,7 @@ func (x *UnblockContact) String() string {
 func (*UnblockContact) ProtoMessage() {}
 
 func (x *UnblockContact) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[12]
+	mi := &file_ipc_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1090,7 +1318,7 @@ func (x *UnblockContact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnblockContact.ProtoReflect.Descriptor instead.
 func (*UnblockContact) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{12}
+	return file_ipc_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UnblockContact) GetPeer() []byte {
@@ -1110,7 +1338,7 @@ type SetAlias struct {
 
 func (x *SetAlias) Reset() {
 	*x = SetAlias{}
-	mi := &file_ipc_proto_msgTypes[13]
+	mi := &file_ipc_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1122,7 +1350,7 @@ func (x *SetAlias) String() string {
 func (*SetAlias) ProtoMessage() {}
 
 func (x *SetAlias) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[13]
+	mi := &file_ipc_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1135,7 +1363,7 @@ func (x *SetAlias) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAlias.ProtoReflect.Descriptor instead.
 func (*SetAlias) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{13}
+	return file_ipc_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SetAlias) GetPeer() []byte {
@@ -1162,7 +1390,7 @@ type DeleteMessage struct {
 
 func (x *DeleteMessage) Reset() {
 	*x = DeleteMessage{}
-	mi := &file_ipc_proto_msgTypes[14]
+	mi := &file_ipc_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1174,7 +1402,7 @@ func (x *DeleteMessage) String() string {
 func (*DeleteMessage) ProtoMessage() {}
 
 func (x *DeleteMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[14]
+	mi := &file_ipc_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1187,7 +1415,7 @@ func (x *DeleteMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMessage.ProtoReflect.Descriptor instead.
 func (*DeleteMessage) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{14}
+	return file_ipc_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeleteMessage) GetPeer() []byte {
@@ -1214,7 +1442,7 @@ type AddContact struct {
 
 func (x *AddContact) Reset() {
 	*x = AddContact{}
-	mi := &file_ipc_proto_msgTypes[15]
+	mi := &file_ipc_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1226,7 +1454,7 @@ func (x *AddContact) String() string {
 func (*AddContact) ProtoMessage() {}
 
 func (x *AddContact) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[15]
+	mi := &file_ipc_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1239,7 +1467,7 @@ func (x *AddContact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddContact.ProtoReflect.Descriptor instead.
 func (*AddContact) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{15}
+	return file_ipc_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AddContact) GetInvite() string {
@@ -1257,7 +1485,7 @@ type ListChats struct {
 
 func (x *ListChats) Reset() {
 	*x = ListChats{}
-	mi := &file_ipc_proto_msgTypes[16]
+	mi := &file_ipc_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1269,7 +1497,7 @@ func (x *ListChats) String() string {
 func (*ListChats) ProtoMessage() {}
 
 func (x *ListChats) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[16]
+	mi := &file_ipc_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1282,7 +1510,7 @@ func (x *ListChats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListChats.ProtoReflect.Descriptor instead.
 func (*ListChats) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{16}
+	return file_ipc_proto_rawDescGZIP(), []int{20}
 }
 
 type ListMessages struct {
@@ -1297,7 +1525,7 @@ type ListMessages struct {
 
 func (x *ListMessages) Reset() {
 	*x = ListMessages{}
-	mi := &file_ipc_proto_msgTypes[17]
+	mi := &file_ipc_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1309,7 +1537,7 @@ func (x *ListMessages) String() string {
 func (*ListMessages) ProtoMessage() {}
 
 func (x *ListMessages) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[17]
+	mi := &file_ipc_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1322,7 +1550,7 @@ func (x *ListMessages) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessages.ProtoReflect.Descriptor instead.
 func (*ListMessages) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{17}
+	return file_ipc_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListMessages) GetPeer() []byte {
@@ -1357,7 +1585,7 @@ type MyInvite struct {
 
 func (x *MyInvite) Reset() {
 	*x = MyInvite{}
-	mi := &file_ipc_proto_msgTypes[18]
+	mi := &file_ipc_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1369,7 +1597,7 @@ func (x *MyInvite) String() string {
 func (*MyInvite) ProtoMessage() {}
 
 func (x *MyInvite) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[18]
+	mi := &file_ipc_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1382,7 +1610,7 @@ func (x *MyInvite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MyInvite.ProtoReflect.Descriptor instead.
 func (*MyInvite) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{18}
+	return file_ipc_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *MyInvite) GetAlias() string {
@@ -1415,7 +1643,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_ipc_proto_msgTypes[19]
+	mi := &file_ipc_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1427,7 +1655,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[19]
+	mi := &file_ipc_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1440,7 +1668,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{19}
+	return file_ipc_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Event) GetKind() isEvent_Kind {
@@ -1629,7 +1857,7 @@ type MediaPreset struct {
 
 func (x *MediaPreset) Reset() {
 	*x = MediaPreset{}
-	mi := &file_ipc_proto_msgTypes[20]
+	mi := &file_ipc_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1641,7 +1869,7 @@ func (x *MediaPreset) String() string {
 func (*MediaPreset) ProtoMessage() {}
 
 func (x *MediaPreset) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[20]
+	mi := &file_ipc_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1654,7 +1882,7 @@ func (x *MediaPreset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MediaPreset.ProtoReflect.Descriptor instead.
 func (*MediaPreset) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{20}
+	return file_ipc_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *MediaPreset) GetLevel() uint32 {
@@ -1677,7 +1905,7 @@ type CallEvent struct {
 
 func (x *CallEvent) Reset() {
 	*x = CallEvent{}
-	mi := &file_ipc_proto_msgTypes[21]
+	mi := &file_ipc_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1689,7 +1917,7 @@ func (x *CallEvent) String() string {
 func (*CallEvent) ProtoMessage() {}
 
 func (x *CallEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[21]
+	mi := &file_ipc_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1702,7 +1930,7 @@ func (x *CallEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallEvent.ProtoReflect.Descriptor instead.
 func (*CallEvent) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{21}
+	return file_ipc_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *CallEvent) GetCallId() []byte {
@@ -1745,7 +1973,7 @@ type FileOffered struct {
 
 func (x *FileOffered) Reset() {
 	*x = FileOffered{}
-	mi := &file_ipc_proto_msgTypes[22]
+	mi := &file_ipc_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1757,7 +1985,7 @@ func (x *FileOffered) String() string {
 func (*FileOffered) ProtoMessage() {}
 
 func (x *FileOffered) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[22]
+	mi := &file_ipc_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1770,7 +1998,7 @@ func (x *FileOffered) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileOffered.ProtoReflect.Descriptor instead.
 func (*FileOffered) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{22}
+	return file_ipc_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *FileOffered) GetPeer() []byte {
@@ -1812,7 +2040,7 @@ type FileProgress struct {
 
 func (x *FileProgress) Reset() {
 	*x = FileProgress{}
-	mi := &file_ipc_proto_msgTypes[23]
+	mi := &file_ipc_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1824,7 +2052,7 @@ func (x *FileProgress) String() string {
 func (*FileProgress) ProtoMessage() {}
 
 func (x *FileProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[23]
+	mi := &file_ipc_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1837,7 +2065,7 @@ func (x *FileProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileProgress.ProtoReflect.Descriptor instead.
 func (*FileProgress) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{23}
+	return file_ipc_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *FileProgress) GetFileId() []byte {
@@ -1871,7 +2099,7 @@ type FileDone struct {
 
 func (x *FileDone) Reset() {
 	*x = FileDone{}
-	mi := &file_ipc_proto_msgTypes[24]
+	mi := &file_ipc_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1883,7 +2111,7 @@ func (x *FileDone) String() string {
 func (*FileDone) ProtoMessage() {}
 
 func (x *FileDone) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[24]
+	mi := &file_ipc_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1896,7 +2124,7 @@ func (x *FileDone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileDone.ProtoReflect.Descriptor instead.
 func (*FileDone) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{24}
+	return file_ipc_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *FileDone) GetFileId() []byte {
@@ -1924,6 +2152,8 @@ type CommandResult struct {
 	//	*CommandResult_Messages
 	//	*CommandResult_Sent
 	//	*CommandResult_Invite
+	//	*CommandResult_Identity
+	//	*CommandResult_Bootstrap
 	Data          isCommandResult_Data `protobuf_oneof:"data"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1931,7 +2161,7 @@ type CommandResult struct {
 
 func (x *CommandResult) Reset() {
 	*x = CommandResult{}
-	mi := &file_ipc_proto_msgTypes[25]
+	mi := &file_ipc_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1943,7 +2173,7 @@ func (x *CommandResult) String() string {
 func (*CommandResult) ProtoMessage() {}
 
 func (x *CommandResult) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[25]
+	mi := &file_ipc_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1956,7 +2186,7 @@ func (x *CommandResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandResult.ProtoReflect.Descriptor instead.
 func (*CommandResult) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{25}
+	return file_ipc_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *CommandResult) GetId() uint64 {
@@ -2016,6 +2246,24 @@ func (x *CommandResult) GetInvite() *Invite {
 	return nil
 }
 
+func (x *CommandResult) GetIdentity() *Identity {
+	if x != nil {
+		if x, ok := x.Data.(*CommandResult_Identity); ok {
+			return x.Identity
+		}
+	}
+	return nil
+}
+
+func (x *CommandResult) GetBootstrap() *BootstrapList {
+	if x != nil {
+		if x, ok := x.Data.(*CommandResult_Bootstrap); ok {
+			return x.Bootstrap
+		}
+	}
+	return nil
+}
+
 type isCommandResult_Data interface {
 	isCommandResult_Data()
 }
@@ -2036,6 +2284,14 @@ type CommandResult_Invite struct {
 	Invite *Invite `protobuf:"bytes,6,opt,name=invite,proto3,oneof"`
 }
 
+type CommandResult_Identity struct {
+	Identity *Identity `protobuf:"bytes,7,opt,name=identity,proto3,oneof"`
+}
+
+type CommandResult_Bootstrap struct {
+	Bootstrap *BootstrapList `protobuf:"bytes,8,opt,name=bootstrap,proto3,oneof"`
+}
+
 func (*CommandResult_Chats) isCommandResult_Data() {}
 
 func (*CommandResult_Messages) isCommandResult_Data() {}
@@ -2043,6 +2299,106 @@ func (*CommandResult_Messages) isCommandResult_Data() {}
 func (*CommandResult_Sent) isCommandResult_Data() {}
 
 func (*CommandResult_Invite) isCommandResult_Data() {}
+
+func (*CommandResult_Identity) isCommandResult_Data() {}
+
+func (*CommandResult_Bootstrap) isCommandResult_Data() {}
+
+type Identity struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"` // hex NodeID
+	Address       string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`             // подтверждённый внешний адрес или пусто
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Identity) Reset() {
+	*x = Identity{}
+	mi := &file_ipc_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Identity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Identity) ProtoMessage() {}
+
+func (x *Identity) ProtoReflect() protoreflect.Message {
+	mi := &file_ipc_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Identity.ProtoReflect.Descriptor instead.
+func (*Identity) Descriptor() ([]byte, []int) {
+	return file_ipc_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *Identity) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *Identity) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+type BootstrapList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []string               `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BootstrapList) Reset() {
+	*x = BootstrapList{}
+	mi := &file_ipc_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BootstrapList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BootstrapList) ProtoMessage() {}
+
+func (x *BootstrapList) ProtoReflect() protoreflect.Message {
+	mi := &file_ipc_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BootstrapList.ProtoReflect.Descriptor instead.
+func (*BootstrapList) Descriptor() ([]byte, []int) {
+	return file_ipc_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *BootstrapList) GetEntries() []string {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
 
 type ChatList struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2053,7 +2409,7 @@ type ChatList struct {
 
 func (x *ChatList) Reset() {
 	*x = ChatList{}
-	mi := &file_ipc_proto_msgTypes[26]
+	mi := &file_ipc_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2065,7 +2421,7 @@ func (x *ChatList) String() string {
 func (*ChatList) ProtoMessage() {}
 
 func (x *ChatList) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[26]
+	mi := &file_ipc_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2078,7 +2434,7 @@ func (x *ChatList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatList.ProtoReflect.Descriptor instead.
 func (*ChatList) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{26}
+	return file_ipc_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ChatList) GetChats() []*Chat {
@@ -2101,7 +2457,7 @@ type Chat struct {
 
 func (x *Chat) Reset() {
 	*x = Chat{}
-	mi := &file_ipc_proto_msgTypes[27]
+	mi := &file_ipc_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2113,7 +2469,7 @@ func (x *Chat) String() string {
 func (*Chat) ProtoMessage() {}
 
 func (x *Chat) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[27]
+	mi := &file_ipc_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2126,7 +2482,7 @@ func (x *Chat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Chat.ProtoReflect.Descriptor instead.
 func (*Chat) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{27}
+	return file_ipc_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Chat) GetPeer() []byte {
@@ -2173,7 +2529,7 @@ type MessageList struct {
 
 func (x *MessageList) Reset() {
 	*x = MessageList{}
-	mi := &file_ipc_proto_msgTypes[28]
+	mi := &file_ipc_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2185,7 +2541,7 @@ func (x *MessageList) String() string {
 func (*MessageList) ProtoMessage() {}
 
 func (x *MessageList) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[28]
+	mi := &file_ipc_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2198,7 +2554,7 @@ func (x *MessageList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageList.ProtoReflect.Descriptor instead.
 func (*MessageList) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{28}
+	return file_ipc_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *MessageList) GetMessages() []*Message {
@@ -2223,7 +2579,7 @@ type Message struct {
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_ipc_proto_msgTypes[29]
+	mi := &file_ipc_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2235,7 +2591,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[29]
+	mi := &file_ipc_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2248,7 +2604,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{29}
+	return file_ipc_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *Message) GetMsgId() []byte {
@@ -2309,7 +2665,7 @@ type SentMessage struct {
 
 func (x *SentMessage) Reset() {
 	*x = SentMessage{}
-	mi := &file_ipc_proto_msgTypes[30]
+	mi := &file_ipc_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2321,7 +2677,7 @@ func (x *SentMessage) String() string {
 func (*SentMessage) ProtoMessage() {}
 
 func (x *SentMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[30]
+	mi := &file_ipc_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2334,7 +2690,7 @@ func (x *SentMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SentMessage.ProtoReflect.Descriptor instead.
 func (*SentMessage) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{30}
+	return file_ipc_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *SentMessage) GetMessage() *Message {
@@ -2353,7 +2709,7 @@ type Invite struct {
 
 func (x *Invite) Reset() {
 	*x = Invite{}
-	mi := &file_ipc_proto_msgTypes[31]
+	mi := &file_ipc_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2365,7 +2721,7 @@ func (x *Invite) String() string {
 func (*Invite) ProtoMessage() {}
 
 func (x *Invite) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[31]
+	mi := &file_ipc_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2378,7 +2734,7 @@ func (x *Invite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Invite.ProtoReflect.Descriptor instead.
 func (*Invite) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{31}
+	return file_ipc_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *Invite) GetInvite() string {
@@ -2397,7 +2753,7 @@ type MessageReceived struct {
 
 func (x *MessageReceived) Reset() {
 	*x = MessageReceived{}
-	mi := &file_ipc_proto_msgTypes[32]
+	mi := &file_ipc_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2409,7 +2765,7 @@ func (x *MessageReceived) String() string {
 func (*MessageReceived) ProtoMessage() {}
 
 func (x *MessageReceived) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[32]
+	mi := &file_ipc_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2422,7 +2778,7 @@ func (x *MessageReceived) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageReceived.ProtoReflect.Descriptor instead.
 func (*MessageReceived) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{32}
+	return file_ipc_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *MessageReceived) GetMessage() *Message {
@@ -2442,7 +2798,7 @@ type MessageDelivered struct {
 
 func (x *MessageDelivered) Reset() {
 	*x = MessageDelivered{}
-	mi := &file_ipc_proto_msgTypes[33]
+	mi := &file_ipc_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2454,7 +2810,7 @@ func (x *MessageDelivered) String() string {
 func (*MessageDelivered) ProtoMessage() {}
 
 func (x *MessageDelivered) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[33]
+	mi := &file_ipc_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2467,7 +2823,7 @@ func (x *MessageDelivered) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageDelivered.ProtoReflect.Descriptor instead.
 func (*MessageDelivered) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{33}
+	return file_ipc_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *MessageDelivered) GetPeer() []byte {
@@ -2494,7 +2850,7 @@ type PresenceChanged struct {
 
 func (x *PresenceChanged) Reset() {
 	*x = PresenceChanged{}
-	mi := &file_ipc_proto_msgTypes[34]
+	mi := &file_ipc_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2506,7 +2862,7 @@ func (x *PresenceChanged) String() string {
 func (*PresenceChanged) ProtoMessage() {}
 
 func (x *PresenceChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[34]
+	mi := &file_ipc_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2519,7 +2875,7 @@ func (x *PresenceChanged) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PresenceChanged.ProtoReflect.Descriptor instead.
 func (*PresenceChanged) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{34}
+	return file_ipc_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *PresenceChanged) GetPeer() []byte {
@@ -2546,7 +2902,7 @@ type ContactRequested struct {
 
 func (x *ContactRequested) Reset() {
 	*x = ContactRequested{}
-	mi := &file_ipc_proto_msgTypes[35]
+	mi := &file_ipc_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2558,7 +2914,7 @@ func (x *ContactRequested) String() string {
 func (*ContactRequested) ProtoMessage() {}
 
 func (x *ContactRequested) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[35]
+	mi := &file_ipc_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2571,7 +2927,7 @@ func (x *ContactRequested) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactRequested.ProtoReflect.Descriptor instead.
 func (*ContactRequested) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{35}
+	return file_ipc_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ContactRequested) GetPeer() []byte {
@@ -2597,7 +2953,7 @@ type ContactAccepted struct {
 
 func (x *ContactAccepted) Reset() {
 	*x = ContactAccepted{}
-	mi := &file_ipc_proto_msgTypes[36]
+	mi := &file_ipc_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2609,7 +2965,7 @@ func (x *ContactAccepted) String() string {
 func (*ContactAccepted) ProtoMessage() {}
 
 func (x *ContactAccepted) ProtoReflect() protoreflect.Message {
-	mi := &file_ipc_proto_msgTypes[36]
+	mi := &file_ipc_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2622,7 +2978,7 @@ func (x *ContactAccepted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactAccepted.ProtoReflect.Descriptor instead.
 func (*ContactAccepted) Descriptor() ([]byte, []int) {
-	return file_ipc_proto_rawDescGZIP(), []int{36}
+	return file_ipc_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ContactAccepted) GetPeer() []byte {
@@ -2643,7 +2999,8 @@ const file_ipc_proto_rawDesc = "" +
 	"\x05event\x18\x03 \x01(\v2\x13.molva.ipc.v1.EventH\x00R\x05eventB\x06\n" +
 	"\x04kind\"\x1d\n" +
 	"\x05Hello\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\fR\x05token\"\x89\b\n" +
+	"\x05token\x18\x01 \x01(\fR\x05token\"\x9b\n" +
+	"\n" +
 	"\aCommand\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x125\n" +
 	"\tsend_text\x18\x02 \x01(\v2\x16.molva.ipc.v1.SendTextH\x00R\bsendText\x12D\n" +
@@ -2669,8 +3026,20 @@ const file_ipc_proto_rawDesc = "" +
 	"\vcall_reject\x18\x10 \x01(\v2\x18.molva.ipc.v1.CallRejectH\x00R\n" +
 	"callReject\x12;\n" +
 	"\vcall_hangup\x18\x11 \x01(\v2\x18.molva.ipc.v1.CallHangupH\x00R\n" +
-	"callHangupB\x06\n" +
-	"\x04kind\"\x1f\n" +
+	"callHangup\x12;\n" +
+	"\vmy_identity\x18\x12 \x01(\v2\x18.molva.ipc.v1.MyIdentityH\x00R\n" +
+	"myIdentity\x12D\n" +
+	"\x0elist_bootstrap\x18\x13 \x01(\v2\x1b.molva.ipc.v1.ListBootstrapH\x00R\rlistBootstrap\x12A\n" +
+	"\radd_bootstrap\x18\x14 \x01(\v2\x1a.molva.ipc.v1.AddBootstrapH\x00R\faddBootstrap\x12J\n" +
+	"\x10remove_bootstrap\x18\x15 \x01(\v2\x1d.molva.ipc.v1.RemoveBootstrapH\x00R\x0fremoveBootstrapB\x06\n" +
+	"\x04kind\"\f\n" +
+	"\n" +
+	"MyIdentity\"\x0f\n" +
+	"\rListBootstrap\"$\n" +
+	"\fAddBootstrap\x12\x14\n" +
+	"\x05entry\x18\x01 \x01(\tR\x05entry\"'\n" +
+	"\x0fRemoveBootstrap\x12\x14\n" +
+	"\x05entry\x18\x01 \x01(\tR\x05entry\"\x1f\n" +
 	"\tCallStart\x12\x12\n" +
 	"\x04peer\x18\x01 \x01(\fR\x04peer\"%\n" +
 	"\n" +
@@ -2752,15 +3121,22 @@ const file_ipc_proto_rawDesc = "" +
 	"\x05total\x18\x03 \x01(\rR\x05total\"7\n" +
 	"\bFileDone\x12\x17\n" +
 	"\afile_id\x18\x01 \x01(\fR\x06fileId\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\"\x87\x02\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\xfa\x02\n" +
 	"\rCommandResult\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12.\n" +
 	"\x05chats\x18\x03 \x01(\v2\x16.molva.ipc.v1.ChatListH\x00R\x05chats\x127\n" +
 	"\bmessages\x18\x04 \x01(\v2\x19.molva.ipc.v1.MessageListH\x00R\bmessages\x12/\n" +
 	"\x04sent\x18\x05 \x01(\v2\x19.molva.ipc.v1.SentMessageH\x00R\x04sent\x12.\n" +
-	"\x06invite\x18\x06 \x01(\v2\x14.molva.ipc.v1.InviteH\x00R\x06inviteB\x06\n" +
-	"\x04data\"4\n" +
+	"\x06invite\x18\x06 \x01(\v2\x14.molva.ipc.v1.InviteH\x00R\x06invite\x124\n" +
+	"\bidentity\x18\a \x01(\v2\x16.molva.ipc.v1.IdentityH\x00R\bidentity\x12;\n" +
+	"\tbootstrap\x18\b \x01(\v2\x1b.molva.ipc.v1.BootstrapListH\x00R\tbootstrapB\x06\n" +
+	"\x04data\"=\n" +
+	"\bIdentity\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x18\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\")\n" +
+	"\rBootstrapList\x12\x18\n" +
+	"\aentries\x18\x01 \x03(\tR\aentries\"4\n" +
 	"\bChatList\x12(\n" +
 	"\x05chats\x18\x01 \x03(\v2\x12.molva.ipc.v1.ChatR\x05chats\"\xa5\x02\n" +
 	"\x04Chat\x12\x12\n" +
@@ -2821,7 +3197,7 @@ func file_ipc_proto_rawDescGZIP() []byte {
 }
 
 var file_ipc_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_ipc_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_ipc_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_ipc_proto_goTypes = []any{
 	(CallEvent_State)(0),     // 0: molva.ipc.v1.CallEvent.State
 	(Chat_State)(0),          // 1: molva.ipc.v1.Chat.State
@@ -2829,89 +3205,101 @@ var file_ipc_proto_goTypes = []any{
 	(*Frame)(nil),            // 3: molva.ipc.v1.Frame
 	(*Hello)(nil),            // 4: molva.ipc.v1.Hello
 	(*Command)(nil),          // 5: molva.ipc.v1.Command
-	(*CallStart)(nil),        // 6: molva.ipc.v1.CallStart
-	(*CallAccept)(nil),       // 7: molva.ipc.v1.CallAccept
-	(*CallReject)(nil),       // 8: molva.ipc.v1.CallReject
-	(*CallHangup)(nil),       // 9: molva.ipc.v1.CallHangup
-	(*OfferFile)(nil),        // 10: molva.ipc.v1.OfferFile
-	(*SendText)(nil),         // 11: molva.ipc.v1.SendText
-	(*AcceptContact)(nil),    // 12: molva.ipc.v1.AcceptContact
-	(*RejectContact)(nil),    // 13: molva.ipc.v1.RejectContact
-	(*BlockContact)(nil),     // 14: molva.ipc.v1.BlockContact
-	(*UnblockContact)(nil),   // 15: molva.ipc.v1.UnblockContact
-	(*SetAlias)(nil),         // 16: molva.ipc.v1.SetAlias
-	(*DeleteMessage)(nil),    // 17: molva.ipc.v1.DeleteMessage
-	(*AddContact)(nil),       // 18: molva.ipc.v1.AddContact
-	(*ListChats)(nil),        // 19: molva.ipc.v1.ListChats
-	(*ListMessages)(nil),     // 20: molva.ipc.v1.ListMessages
-	(*MyInvite)(nil),         // 21: molva.ipc.v1.MyInvite
-	(*Event)(nil),            // 22: molva.ipc.v1.Event
-	(*MediaPreset)(nil),      // 23: molva.ipc.v1.MediaPreset
-	(*CallEvent)(nil),        // 24: molva.ipc.v1.CallEvent
-	(*FileOffered)(nil),      // 25: molva.ipc.v1.FileOffered
-	(*FileProgress)(nil),     // 26: molva.ipc.v1.FileProgress
-	(*FileDone)(nil),         // 27: molva.ipc.v1.FileDone
-	(*CommandResult)(nil),    // 28: molva.ipc.v1.CommandResult
-	(*ChatList)(nil),         // 29: molva.ipc.v1.ChatList
-	(*Chat)(nil),             // 30: molva.ipc.v1.Chat
-	(*MessageList)(nil),      // 31: molva.ipc.v1.MessageList
-	(*Message)(nil),          // 32: molva.ipc.v1.Message
-	(*SentMessage)(nil),      // 33: molva.ipc.v1.SentMessage
-	(*Invite)(nil),           // 34: molva.ipc.v1.Invite
-	(*MessageReceived)(nil),  // 35: molva.ipc.v1.MessageReceived
-	(*MessageDelivered)(nil), // 36: molva.ipc.v1.MessageDelivered
-	(*PresenceChanged)(nil),  // 37: molva.ipc.v1.PresenceChanged
-	(*ContactRequested)(nil), // 38: molva.ipc.v1.ContactRequested
-	(*ContactAccepted)(nil),  // 39: molva.ipc.v1.ContactAccepted
+	(*MyIdentity)(nil),       // 6: molva.ipc.v1.MyIdentity
+	(*ListBootstrap)(nil),    // 7: molva.ipc.v1.ListBootstrap
+	(*AddBootstrap)(nil),     // 8: molva.ipc.v1.AddBootstrap
+	(*RemoveBootstrap)(nil),  // 9: molva.ipc.v1.RemoveBootstrap
+	(*CallStart)(nil),        // 10: molva.ipc.v1.CallStart
+	(*CallAccept)(nil),       // 11: molva.ipc.v1.CallAccept
+	(*CallReject)(nil),       // 12: molva.ipc.v1.CallReject
+	(*CallHangup)(nil),       // 13: molva.ipc.v1.CallHangup
+	(*OfferFile)(nil),        // 14: molva.ipc.v1.OfferFile
+	(*SendText)(nil),         // 15: molva.ipc.v1.SendText
+	(*AcceptContact)(nil),    // 16: molva.ipc.v1.AcceptContact
+	(*RejectContact)(nil),    // 17: molva.ipc.v1.RejectContact
+	(*BlockContact)(nil),     // 18: molva.ipc.v1.BlockContact
+	(*UnblockContact)(nil),   // 19: molva.ipc.v1.UnblockContact
+	(*SetAlias)(nil),         // 20: molva.ipc.v1.SetAlias
+	(*DeleteMessage)(nil),    // 21: molva.ipc.v1.DeleteMessage
+	(*AddContact)(nil),       // 22: molva.ipc.v1.AddContact
+	(*ListChats)(nil),        // 23: molva.ipc.v1.ListChats
+	(*ListMessages)(nil),     // 24: molva.ipc.v1.ListMessages
+	(*MyInvite)(nil),         // 25: molva.ipc.v1.MyInvite
+	(*Event)(nil),            // 26: molva.ipc.v1.Event
+	(*MediaPreset)(nil),      // 27: molva.ipc.v1.MediaPreset
+	(*CallEvent)(nil),        // 28: molva.ipc.v1.CallEvent
+	(*FileOffered)(nil),      // 29: molva.ipc.v1.FileOffered
+	(*FileProgress)(nil),     // 30: molva.ipc.v1.FileProgress
+	(*FileDone)(nil),         // 31: molva.ipc.v1.FileDone
+	(*CommandResult)(nil),    // 32: molva.ipc.v1.CommandResult
+	(*Identity)(nil),         // 33: molva.ipc.v1.Identity
+	(*BootstrapList)(nil),    // 34: molva.ipc.v1.BootstrapList
+	(*ChatList)(nil),         // 35: molva.ipc.v1.ChatList
+	(*Chat)(nil),             // 36: molva.ipc.v1.Chat
+	(*MessageList)(nil),      // 37: molva.ipc.v1.MessageList
+	(*Message)(nil),          // 38: molva.ipc.v1.Message
+	(*SentMessage)(nil),      // 39: molva.ipc.v1.SentMessage
+	(*Invite)(nil),           // 40: molva.ipc.v1.Invite
+	(*MessageReceived)(nil),  // 41: molva.ipc.v1.MessageReceived
+	(*MessageDelivered)(nil), // 42: molva.ipc.v1.MessageDelivered
+	(*PresenceChanged)(nil),  // 43: molva.ipc.v1.PresenceChanged
+	(*ContactRequested)(nil), // 44: molva.ipc.v1.ContactRequested
+	(*ContactAccepted)(nil),  // 45: molva.ipc.v1.ContactAccepted
 }
 var file_ipc_proto_depIdxs = []int32{
 	4,  // 0: molva.ipc.v1.Frame.hello:type_name -> molva.ipc.v1.Hello
 	5,  // 1: molva.ipc.v1.Frame.command:type_name -> molva.ipc.v1.Command
-	22, // 2: molva.ipc.v1.Frame.event:type_name -> molva.ipc.v1.Event
-	11, // 3: molva.ipc.v1.Command.send_text:type_name -> molva.ipc.v1.SendText
-	12, // 4: molva.ipc.v1.Command.accept_contact:type_name -> molva.ipc.v1.AcceptContact
-	13, // 5: molva.ipc.v1.Command.reject_contact:type_name -> molva.ipc.v1.RejectContact
-	14, // 6: molva.ipc.v1.Command.block_contact:type_name -> molva.ipc.v1.BlockContact
-	15, // 7: molva.ipc.v1.Command.unblock_contact:type_name -> molva.ipc.v1.UnblockContact
-	16, // 8: molva.ipc.v1.Command.set_alias:type_name -> molva.ipc.v1.SetAlias
-	17, // 9: molva.ipc.v1.Command.delete_message:type_name -> molva.ipc.v1.DeleteMessage
-	18, // 10: molva.ipc.v1.Command.add_contact:type_name -> molva.ipc.v1.AddContact
-	19, // 11: molva.ipc.v1.Command.list_chats:type_name -> molva.ipc.v1.ListChats
-	20, // 12: molva.ipc.v1.Command.list_messages:type_name -> molva.ipc.v1.ListMessages
-	21, // 13: molva.ipc.v1.Command.my_invite:type_name -> molva.ipc.v1.MyInvite
-	10, // 14: molva.ipc.v1.Command.offer_file:type_name -> molva.ipc.v1.OfferFile
-	6,  // 15: molva.ipc.v1.Command.call_start:type_name -> molva.ipc.v1.CallStart
-	7,  // 16: molva.ipc.v1.Command.call_accept:type_name -> molva.ipc.v1.CallAccept
-	8,  // 17: molva.ipc.v1.Command.call_reject:type_name -> molva.ipc.v1.CallReject
-	9,  // 18: molva.ipc.v1.Command.call_hangup:type_name -> molva.ipc.v1.CallHangup
-	28, // 19: molva.ipc.v1.Event.command_result:type_name -> molva.ipc.v1.CommandResult
-	35, // 20: molva.ipc.v1.Event.message_received:type_name -> molva.ipc.v1.MessageReceived
-	36, // 21: molva.ipc.v1.Event.message_delivered:type_name -> molva.ipc.v1.MessageDelivered
-	37, // 22: molva.ipc.v1.Event.presence_changed:type_name -> molva.ipc.v1.PresenceChanged
-	38, // 23: molva.ipc.v1.Event.contact_requested:type_name -> molva.ipc.v1.ContactRequested
-	39, // 24: molva.ipc.v1.Event.contact_accepted:type_name -> molva.ipc.v1.ContactAccepted
-	25, // 25: molva.ipc.v1.Event.file_offered:type_name -> molva.ipc.v1.FileOffered
-	26, // 26: molva.ipc.v1.Event.file_progress:type_name -> molva.ipc.v1.FileProgress
-	27, // 27: molva.ipc.v1.Event.file_done:type_name -> molva.ipc.v1.FileDone
-	24, // 28: molva.ipc.v1.Event.call_event:type_name -> molva.ipc.v1.CallEvent
-	23, // 29: molva.ipc.v1.Event.media_preset:type_name -> molva.ipc.v1.MediaPreset
-	0,  // 30: molva.ipc.v1.CallEvent.state:type_name -> molva.ipc.v1.CallEvent.State
-	29, // 31: molva.ipc.v1.CommandResult.chats:type_name -> molva.ipc.v1.ChatList
-	31, // 32: molva.ipc.v1.CommandResult.messages:type_name -> molva.ipc.v1.MessageList
-	33, // 33: molva.ipc.v1.CommandResult.sent:type_name -> molva.ipc.v1.SentMessage
-	34, // 34: molva.ipc.v1.CommandResult.invite:type_name -> molva.ipc.v1.Invite
-	30, // 35: molva.ipc.v1.ChatList.chats:type_name -> molva.ipc.v1.Chat
-	32, // 36: molva.ipc.v1.Chat.last_message:type_name -> molva.ipc.v1.Message
-	1,  // 37: molva.ipc.v1.Chat.state:type_name -> molva.ipc.v1.Chat.State
-	32, // 38: molva.ipc.v1.MessageList.messages:type_name -> molva.ipc.v1.Message
-	2,  // 39: molva.ipc.v1.Message.status:type_name -> molva.ipc.v1.Message.Status
-	32, // 40: molva.ipc.v1.SentMessage.message:type_name -> molva.ipc.v1.Message
-	32, // 41: molva.ipc.v1.MessageReceived.message:type_name -> molva.ipc.v1.Message
-	42, // [42:42] is the sub-list for method output_type
-	42, // [42:42] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	26, // 2: molva.ipc.v1.Frame.event:type_name -> molva.ipc.v1.Event
+	15, // 3: molva.ipc.v1.Command.send_text:type_name -> molva.ipc.v1.SendText
+	16, // 4: molva.ipc.v1.Command.accept_contact:type_name -> molva.ipc.v1.AcceptContact
+	17, // 5: molva.ipc.v1.Command.reject_contact:type_name -> molva.ipc.v1.RejectContact
+	18, // 6: molva.ipc.v1.Command.block_contact:type_name -> molva.ipc.v1.BlockContact
+	19, // 7: molva.ipc.v1.Command.unblock_contact:type_name -> molva.ipc.v1.UnblockContact
+	20, // 8: molva.ipc.v1.Command.set_alias:type_name -> molva.ipc.v1.SetAlias
+	21, // 9: molva.ipc.v1.Command.delete_message:type_name -> molva.ipc.v1.DeleteMessage
+	22, // 10: molva.ipc.v1.Command.add_contact:type_name -> molva.ipc.v1.AddContact
+	23, // 11: molva.ipc.v1.Command.list_chats:type_name -> molva.ipc.v1.ListChats
+	24, // 12: molva.ipc.v1.Command.list_messages:type_name -> molva.ipc.v1.ListMessages
+	25, // 13: molva.ipc.v1.Command.my_invite:type_name -> molva.ipc.v1.MyInvite
+	14, // 14: molva.ipc.v1.Command.offer_file:type_name -> molva.ipc.v1.OfferFile
+	10, // 15: molva.ipc.v1.Command.call_start:type_name -> molva.ipc.v1.CallStart
+	11, // 16: molva.ipc.v1.Command.call_accept:type_name -> molva.ipc.v1.CallAccept
+	12, // 17: molva.ipc.v1.Command.call_reject:type_name -> molva.ipc.v1.CallReject
+	13, // 18: molva.ipc.v1.Command.call_hangup:type_name -> molva.ipc.v1.CallHangup
+	6,  // 19: molva.ipc.v1.Command.my_identity:type_name -> molva.ipc.v1.MyIdentity
+	7,  // 20: molva.ipc.v1.Command.list_bootstrap:type_name -> molva.ipc.v1.ListBootstrap
+	8,  // 21: molva.ipc.v1.Command.add_bootstrap:type_name -> molva.ipc.v1.AddBootstrap
+	9,  // 22: molva.ipc.v1.Command.remove_bootstrap:type_name -> molva.ipc.v1.RemoveBootstrap
+	32, // 23: molva.ipc.v1.Event.command_result:type_name -> molva.ipc.v1.CommandResult
+	41, // 24: molva.ipc.v1.Event.message_received:type_name -> molva.ipc.v1.MessageReceived
+	42, // 25: molva.ipc.v1.Event.message_delivered:type_name -> molva.ipc.v1.MessageDelivered
+	43, // 26: molva.ipc.v1.Event.presence_changed:type_name -> molva.ipc.v1.PresenceChanged
+	44, // 27: molva.ipc.v1.Event.contact_requested:type_name -> molva.ipc.v1.ContactRequested
+	45, // 28: molva.ipc.v1.Event.contact_accepted:type_name -> molva.ipc.v1.ContactAccepted
+	29, // 29: molva.ipc.v1.Event.file_offered:type_name -> molva.ipc.v1.FileOffered
+	30, // 30: molva.ipc.v1.Event.file_progress:type_name -> molva.ipc.v1.FileProgress
+	31, // 31: molva.ipc.v1.Event.file_done:type_name -> molva.ipc.v1.FileDone
+	28, // 32: molva.ipc.v1.Event.call_event:type_name -> molva.ipc.v1.CallEvent
+	27, // 33: molva.ipc.v1.Event.media_preset:type_name -> molva.ipc.v1.MediaPreset
+	0,  // 34: molva.ipc.v1.CallEvent.state:type_name -> molva.ipc.v1.CallEvent.State
+	35, // 35: molva.ipc.v1.CommandResult.chats:type_name -> molva.ipc.v1.ChatList
+	37, // 36: molva.ipc.v1.CommandResult.messages:type_name -> molva.ipc.v1.MessageList
+	39, // 37: molva.ipc.v1.CommandResult.sent:type_name -> molva.ipc.v1.SentMessage
+	40, // 38: molva.ipc.v1.CommandResult.invite:type_name -> molva.ipc.v1.Invite
+	33, // 39: molva.ipc.v1.CommandResult.identity:type_name -> molva.ipc.v1.Identity
+	34, // 40: molva.ipc.v1.CommandResult.bootstrap:type_name -> molva.ipc.v1.BootstrapList
+	36, // 41: molva.ipc.v1.ChatList.chats:type_name -> molva.ipc.v1.Chat
+	38, // 42: molva.ipc.v1.Chat.last_message:type_name -> molva.ipc.v1.Message
+	1,  // 43: molva.ipc.v1.Chat.state:type_name -> molva.ipc.v1.Chat.State
+	38, // 44: molva.ipc.v1.MessageList.messages:type_name -> molva.ipc.v1.Message
+	2,  // 45: molva.ipc.v1.Message.status:type_name -> molva.ipc.v1.Message.Status
+	38, // 46: molva.ipc.v1.SentMessage.message:type_name -> molva.ipc.v1.Message
+	38, // 47: molva.ipc.v1.MessageReceived.message:type_name -> molva.ipc.v1.Message
+	48, // [48:48] is the sub-list for method output_type
+	48, // [48:48] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	48, // [48:48] is the sub-list for extension extendee
+	0,  // [0:48] is the sub-list for field type_name
 }
 
 func init() { file_ipc_proto_init() }
@@ -2941,8 +3329,12 @@ func file_ipc_proto_init() {
 		(*Command_CallAccept)(nil),
 		(*Command_CallReject)(nil),
 		(*Command_CallHangup)(nil),
+		(*Command_MyIdentity)(nil),
+		(*Command_ListBootstrap)(nil),
+		(*Command_AddBootstrap)(nil),
+		(*Command_RemoveBootstrap)(nil),
 	}
-	file_ipc_proto_msgTypes[19].OneofWrappers = []any{
+	file_ipc_proto_msgTypes[23].OneofWrappers = []any{
 		(*Event_CommandResult)(nil),
 		(*Event_MessageReceived)(nil),
 		(*Event_MessageDelivered)(nil),
@@ -2955,11 +3347,13 @@ func file_ipc_proto_init() {
 		(*Event_CallEvent)(nil),
 		(*Event_MediaPreset)(nil),
 	}
-	file_ipc_proto_msgTypes[25].OneofWrappers = []any{
+	file_ipc_proto_msgTypes[29].OneofWrappers = []any{
 		(*CommandResult_Chats)(nil),
 		(*CommandResult_Messages)(nil),
 		(*CommandResult_Sent)(nil),
 		(*CommandResult_Invite)(nil),
+		(*CommandResult_Identity)(nil),
+		(*CommandResult_Bootstrap)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2967,7 +3361,7 @@ func file_ipc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ipc_proto_rawDesc), len(file_ipc_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   37,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -556,6 +556,114 @@ input:focus, textarea:focus {
 .modal .row { display: flex; gap: 8px; justify-content: flex-end; }
 .modal input { width: 100%; font-family: var(--mono); font-size: 12px; }
 
+/* ── Онбординг ────────────────────────────────────────────────────── */
+
+.onboard {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 1px 1px, var(--line-soft) 1px, transparent 0) 0 0 / 26px 26px,
+    var(--ink);
+}
+.onboard-card {
+  width: 460px;
+  max-width: 92vw;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 28px 26px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  animation: modalIn 0.2s ease-out;
+}
+.onboard-sub {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: var(--faint);
+  text-transform: uppercase;
+  margin-bottom: 22px;
+}
+.onboard-choose {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+button.big {
+  padding: 12px;
+  font-size: 13px;
+}
+
+.phrase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 4px 0;
+}
+.phrase-grid.small { grid-template-columns: repeat(4, 1fr); }
+.phrase-word {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--ink);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.phrase-grid.small .phrase-word { font-size: 11px; padding: 4px 6px; }
+.phrase-num {
+  font-size: 9px;
+  color: var(--faint);
+  min-width: 14px;
+}
+.checkrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.checkrow input { width: auto; }
+
+/* ── Настройки ────────────────────────────────────────────────────── */
+
+.modal section {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
+.boot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.boot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ink);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+.boot-addr {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  word-break: break-all;
+}
+.boot-row button { padding: 2px 8px; }
+
 /* Тост подтверждения копирования. */
 .toast {
   position: fixed;

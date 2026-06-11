@@ -52,7 +52,9 @@ type Server struct {
 	contacts  *contact.Manager
 	files     *blob.Manager
 	calls     *callsig.Manager
+	boot      Bootstrapper
 	sendMedia func(ch uint8, payload []byte) error
+	reflexive func() string // подтверждённый внешний адрес узла (host:port) или ""
 	db        *store.DB
 	self      peer.ID
 
@@ -80,14 +82,23 @@ func NewServer(token []byte, grace time.Duration) *Server {
 
 // Bind подключает подсистемы ядра (до Run). sendMedia — отправка
 // медиакадра в активный звонок (мост уровня app).
-func (s *Server) Bind(chats *chat.Manager, contacts *contact.Manager, files *blob.Manager, calls *callsig.Manager, sendMedia func(ch uint8, payload []byte) error, db *store.DB, self peer.ID) {
+func (s *Server) Bind(chats *chat.Manager, contacts *contact.Manager, files *blob.Manager, calls *callsig.Manager, boot Bootstrapper, sendMedia func(ch uint8, payload []byte) error, reflexive func() string, db *store.DB, self peer.ID) {
 	s.chats = chats
 	s.contacts = contacts
 	s.files = files
 	s.calls = calls
+	s.boot = boot
 	s.sendMedia = sendMedia
+	s.reflexive = reflexive
 	s.db = db
 	s.self = self
+}
+
+// Bootstrapper — управление точками входа сети (реализует app.Core).
+type Bootstrapper interface {
+	BootstrapEntries() []string
+	AddBootstrap(entry string) error
+	RemoveBootstrap(entry string) error
 }
 
 // Listen открывает loopback-листенер; addr вида "127.0.0.1:0".
@@ -517,6 +528,40 @@ func (s *Server) dispatch(ctx context.Context, cmd *ipcpb.Command, res *ipcpb.Co
 	case *ipcpb.Command_MyInvite:
 		res.Data = &ipcpb.CommandResult_Invite{Invite: &ipcpb.Invite{
 			Invite: s.contacts.MyInvite(k.MyInvite.Alias),
+		}}
+		return nil
+
+	case *ipcpb.Command_MyIdentity:
+		addr := ""
+		if s.reflexive != nil {
+			addr = s.reflexive()
+		}
+		res.Data = &ipcpb.CommandResult_Identity{Identity: &ipcpb.Identity{
+			NodeId: s.self.String(), Address: addr,
+		}}
+		return nil
+
+	case *ipcpb.Command_ListBootstrap:
+		res.Data = &ipcpb.CommandResult_Bootstrap{Bootstrap: &ipcpb.BootstrapList{
+			Entries: s.boot.BootstrapEntries(),
+		}}
+		return nil
+
+	case *ipcpb.Command_AddBootstrap:
+		if err := s.boot.AddBootstrap(k.AddBootstrap.Entry); err != nil {
+			return err
+		}
+		res.Data = &ipcpb.CommandResult_Bootstrap{Bootstrap: &ipcpb.BootstrapList{
+			Entries: s.boot.BootstrapEntries(),
+		}}
+		return nil
+
+	case *ipcpb.Command_RemoveBootstrap:
+		if err := s.boot.RemoveBootstrap(k.RemoveBootstrap.Entry); err != nil {
+			return err
+		}
+		res.Data = &ipcpb.CommandResult_Bootstrap{Bootstrap: &ipcpb.BootstrapList{
+			Entries: s.boot.BootstrapEntries(),
 		}}
 		return nil
 
