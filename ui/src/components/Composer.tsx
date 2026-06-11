@@ -1,0 +1,46 @@
+import { useRef, useState } from "react";
+import { Chat_State } from "../gen/ipc";
+import { sendText, useStore } from "../state/store";
+
+export function Composer() {
+  const { selected, chats } = useStore();
+  const [text, setText] = useState("");
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const chat = chats.find((c) => c.peerHex === selected);
+  const canWrite = chat?.state === Chat_State.STATE_CONTACT;
+
+  const submit = () => {
+    const t = text.trim();
+    if (!t) return;
+    void sendText(t);
+    setText("");
+    if (areaRef.current) areaRef.current.style.height = "auto";
+  };
+
+  return (
+    <div className="composer">
+      <span className="prompt">▸</span>
+      <textarea
+        ref={areaRef}
+        rows={1}
+        value={text}
+        placeholder={canWrite ? "сообщение… (Enter — в эфир)" : "связь доступна после принятия контакта"}
+        disabled={!canWrite}
+        onChange={(e) => {
+          setText(e.target.value);
+          e.target.style.height = "auto";
+          e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+      />
+      <button className="primary" onClick={submit} disabled={!canWrite || !text.trim()}>
+        передать
+      </button>
+    </div>
+  );
+}

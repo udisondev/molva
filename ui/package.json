@@ -1,0 +1,35 @@
+{
+  "name": "molva-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron-оболочка molva: рендер состояния ядра и медиастек",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build && npm run build:electron",
+    "build:electron": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --external:electron --outdir=dist-electron --format=cjs",
+    "start": "npm run build && electron .",
+    "gen": "cd .. && sh proto/gen.sh"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "electron": "^36.4.0",
+    "esbuild": "^0.25.5",
+    "ts-proto": "^2.7.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.5.2",
+    "@fontsource/ibm-plex-mono": "^5.2.5",
+    "@fontsource/ibm-plex-sans": "^5.2.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "allowScripts": {
+    "electron@36.9.5": true,
+    "esbuild@0.25.12": true
+  }
+}
