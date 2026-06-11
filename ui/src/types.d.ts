@@ -12,6 +12,9 @@ interface Window {
   };
 }
 
+// CSS-импорты обрабатывает vite, для tsc это сторонние модули без типов.
+declare module "*.css";
+
 // MediaStreamTrackProcessor — API Chromium (есть в Electron), отсутствует
 // в стандартных DOM-типах.
 declare class MediaStreamTrackProcessor<T> {

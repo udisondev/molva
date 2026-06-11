@@ -11,7 +11,7 @@ export type MediaHandler = (ch: number, rxMicros: bigint, payload: Uint8Array) =
 const TAG_PROTO = 0x00;
 const TAG_MEDIA = 0x01;
 
-function wrapProto(b: Uint8Array): Uint8Array {
+function wrapProto(b: Uint8Array): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(b.length + 1);
   out[0] = TAG_PROTO;
   out.set(b, 1);

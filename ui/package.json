@@ -18,13 +18,13 @@
   "devDependencies": {
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.5.2",
-    "electron": "^36.4.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "electron": "^42.4.0",
     "electron-builder": "^26.15.2",
-    "esbuild": "^0.25.5",
+    "esbuild": "^0.28.0",
     "ts-proto": "^2.7.0",
-    "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.5.2",
@@ -34,7 +34,7 @@
     "react-dom": "^19.1.0"
   },
   "allowScripts": {
-    "electron@36.9.5": true,
-    "esbuild@0.25.12": true
+    "electron@42.4.0": true,
+    "esbuild@0.28.0": true
   }
 }
