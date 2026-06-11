@@ -37,11 +37,11 @@ func (t *Tx) InsertMessage(m *Message) (bool, error) {
 		bodyCt = ct
 	}
 	res, err := t.tx.ExecContext(t.ctx,
-		`INSERT INTO messages (peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO messages (peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct, sender)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (peer, outgoing, msg_id) DO NOTHING`,
 		m.Peer[:], m.MsgID[:], boolInt(m.Outgoing), m.FromSeq, m.Lamport, m.SentAt,
-		int(m.Status), boolInt(m.Deleted), bodyCt)
+		int(m.Status), boolInt(m.Deleted), bodyCt, m.Sender)
 	if err != nil {
 		return false, fmt.Errorf("store: insert message: %w", err)
 	}

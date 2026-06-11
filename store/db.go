@@ -107,7 +107,7 @@ func (d *DB) Tx(ctx context.Context, fn func(tx *Tx) error) error {
 // ListMessages — последние limit сообщений диалога в порядке отображения
 // (lamport, затем id). limit <= 0 — все.
 func (d *DB) ListMessages(ctx context.Context, p peer.ID, limit int) ([]Message, error) {
-	q := `SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct
+	q := `SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct, sender
 	      FROM messages WHERE peer = ? ORDER BY lamport DESC, id DESC`
 	if limit > 0 {
 		q += fmt.Sprintf(" LIMIT %d", limit)
@@ -138,7 +138,7 @@ func (d *DB) ListMessages(ctx context.Context, p peer.ID, limit int) ([]Message,
 // LastMessage — последнее сообщение диалога в порядке отображения.
 func (d *DB) LastMessage(ctx context.Context, p peer.ID) (Message, bool, error) {
 	row := d.sql.QueryRowContext(ctx,
-		`SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct
+		`SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct, sender
 		 FROM messages WHERE peer = ? ORDER BY lamport DESC, id DESC LIMIT 1`, p[:])
 	m, err := scanMessage(row, d.box)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -153,7 +153,7 @@ func (d *DB) LastMessage(ctx context.Context, p peer.ID) (Message, bool, error) 
 // GetMessage — одно сообщение по ключу истории.
 func (d *DB) GetMessage(ctx context.Context, p peer.ID, mid envelope.MsgID, outgoing bool) (Message, bool, error) {
 	row := d.sql.QueryRowContext(ctx,
-		`SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct
+		`SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct, sender
 		 FROM messages WHERE peer = ? AND outgoing = ? AND msg_id = ?`,
 		p[:], boolInt(outgoing), mid[:])
 	m, err := scanMessage(row, d.box)
@@ -249,7 +249,7 @@ func scanMessage(s scanner, bx box) (Message, error) {
 		deleted  int
 		bodyCt   []byte
 	)
-	if err := s.Scan(&pb, &mb, &outgoing, &m.FromSeq, &m.Lamport, &m.SentAt, &status, &deleted, &bodyCt); err != nil {
+	if err := s.Scan(&pb, &mb, &outgoing, &m.FromSeq, &m.Lamport, &m.SentAt, &status, &deleted, &bodyCt, &m.Sender); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Message{}, err
 		}

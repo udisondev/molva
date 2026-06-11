@@ -46,4 +46,10 @@ enum Type {
   TYPE_FILE_CHUNK_REQ = 11;
   // Чанк файла: открытый Chunk (контент зашифрован файловым ключом).
   TYPE_FILE_CHUNK = 12;
+  // Приглашение в группу: ratchet-сообщение с Welcome внутри.
+  TYPE_GROUP_WELCOME = 13;
+  // Новая версия членства: ratchet-сообщение с Update внутри.
+  TYPE_GROUP_UPDATE = 14;
+  // Раздача sender key: ratchet-сообщение с SenderKeyDist внутри.
+  TYPE_GROUP_KEY = 15;
 }

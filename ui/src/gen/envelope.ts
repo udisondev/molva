@@ -35,6 +35,12 @@ export enum Type {
   TYPE_FILE_CHUNK_REQ = 11,
   /** TYPE_FILE_CHUNK - Чанк файла: открытый Chunk (контент зашифрован файловым ключом). */
   TYPE_FILE_CHUNK = 12,
+  /** TYPE_GROUP_WELCOME - Приглашение в группу: ratchet-сообщение с Welcome внутри. */
+  TYPE_GROUP_WELCOME = 13,
+  /** TYPE_GROUP_UPDATE - Новая версия членства: ratchet-сообщение с Update внутри. */
+  TYPE_GROUP_UPDATE = 14,
+  /** TYPE_GROUP_KEY - Раздача sender key: ratchet-сообщение с SenderKeyDist внутри. */
+  TYPE_GROUP_KEY = 15,
   UNRECOGNIZED = -1,
 }
 
@@ -79,6 +85,15 @@ export function typeFromJSON(object: any): Type {
     case 12:
     case "TYPE_FILE_CHUNK":
       return Type.TYPE_FILE_CHUNK;
+    case 13:
+    case "TYPE_GROUP_WELCOME":
+      return Type.TYPE_GROUP_WELCOME;
+    case 14:
+    case "TYPE_GROUP_UPDATE":
+      return Type.TYPE_GROUP_UPDATE;
+    case 15:
+    case "TYPE_GROUP_KEY":
+      return Type.TYPE_GROUP_KEY;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -114,6 +129,12 @@ export function typeToJSON(object: Type): string {
       return "TYPE_FILE_CHUNK_REQ";
     case Type.TYPE_FILE_CHUNK:
       return "TYPE_FILE_CHUNK";
+    case Type.TYPE_GROUP_WELCOME:
+      return "TYPE_GROUP_WELCOME";
+    case Type.TYPE_GROUP_UPDATE:
+      return "TYPE_GROUP_UPDATE";
+    case Type.TYPE_GROUP_KEY:
+      return "TYPE_GROUP_KEY";
     case Type.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";

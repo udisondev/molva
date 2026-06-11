@@ -30,4 +30,6 @@ type Message struct {
 	Status   Status
 	Deleted  bool
 	Body     []byte
+	// Sender — отправитель в группе (Peer тогда — group_id); nil в личке.
+	Sender []byte
 }

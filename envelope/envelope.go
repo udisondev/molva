@@ -70,8 +70,14 @@ const (
 	TypeFileChunkReq Type = 11
 	// TypeFileChunk — чанк файла, контент зашифрован файловым ключом.
 	TypeFileChunk Type = 12
+	// TypeGroupWelcome — приглашение в группу (Welcome внутри ratchet).
+	TypeGroupWelcome Type = 13
+	// TypeGroupUpdate — новая версия членства (Update внутри ratchet).
+	TypeGroupUpdate Type = 14
+	// TypeGroupKey — раздача sender key (внутри ratchet).
+	TypeGroupKey Type = 15
 
-	maxType = TypeFileChunk
+	maxType = TypeGroupKey
 )
 
 // Envelope — разобранный конверт. Payload для Decode — копия входа,

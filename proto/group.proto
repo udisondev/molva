@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package molva.group.v1;
+
+option go_package = "github.com/udisondev/molva/proto/grouppb";
+
+// Группы: membership подписывается админом, sender keys раздаются по
+// попарным DR-сессиям, сообщения шифруются один раз и рассылаются
+// веером через общий надёжный outbox.
+
+// Membership — подписанный админом состав группы; новая версия на каждое
+// изменение. Каноничная сериализация для подписи — отдельная (не protobuf).
+message Membership {
+  bytes group_id = 1;        // 32 случайных байта
+  uint64 version = 2;
+  string name = 3;
+  bytes admin_pub = 4;       // Ed25519 админа (создателя)
+  repeated bytes members = 5; // NodeID участников, отсортированы байтово
+  bytes signature = 6;       // Ed25519 админа над каноничной формой
+}
+
+// SenderKeyDist — раздача своего sender key: ТЕКУЩЕЕ состояние цепочки
+// (новичок не сможет читать историю — цепочка идёт только вперёд).
+message SenderKeyDist {
+  bytes group_id = 1;
+  uint32 generation = 2; // растёт при rekey
+  bytes chain_key = 3;   // 32, текущий
+  uint32 n = 4;          // номер следующего сообщения цепочки
+  bytes sign_pub = 5;    // Ed25519 подписи сообщений этого участника
+}
+
+// Welcome — приглашение новичку: членство и известные админу текущие
+// ключи участников.
+message Welcome {
+  Membership membership = 1;
+  repeated MemberKey keys = 2;
+}
+
+message MemberKey {
+  bytes member = 1;
+  SenderKeyDist key = 2;
+}
+
+// Update — новая версия членства существующим участникам.
+message Update {
+  Membership membership = 1;
+}
+
+// Message — групповое сообщение (payload конверта TYPE_GROUP, открытый):
+// шифртекст под message key отправителя + его подпись.
+message Message {
+  bytes group_id = 1;
+  uint32 generation = 2;
+  uint32 n = 3;
+  bytes ciphertext = 4;
+  bytes signature = 5; // Ed25519 отправителя над каноничной формой
+}

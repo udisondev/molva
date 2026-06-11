@@ -15,6 +15,7 @@ import (
 	"github.com/udisondev/molva/chat"
 	"github.com/udisondev/molva/contact"
 	"github.com/udisondev/molva/envelope"
+	"github.com/udisondev/molva/group"
 	"github.com/udisondev/molva/outbox"
 	"github.com/udisondev/molva/peer"
 	"github.com/udisondev/molva/store"
@@ -55,6 +56,7 @@ type Config struct {
 	OnFileOffered    func(peer.ID, blob.Manifest)
 	OnFileProgress   func(fileID [16]byte, have, total int)
 	OnFileDone       func(fileID [16]byte, path string)
+	OnGroupMessage   func(store.Message)
 }
 
 // Core — работающее ядро molva: nodenet-узел, хранилище, движок надёжной
@@ -68,6 +70,7 @@ type Core struct {
 	contacts *contact.Manager
 	chats    *chat.Manager
 	blobs    *blob.Manager
+	groups   *group.Manager
 	tap      func(from node.ID, payload []byte)
 }
 
@@ -122,6 +125,9 @@ func New(cfg Config) (*Core, error) {
 	c.blobs.SetCallbacks(cfg.OnFileOffered, cfg.OnFileProgress, cfg.OnFileDone)
 	c.outbox.HandleFast(envelope.TypeFileChunk, c.blobs.HandleChunk)
 	c.outbox.HandleFast(envelope.TypeFileChunkReq, c.blobs.HandleChunkReq)
+
+	c.groups = group.NewManager(db, c.outbox, c.chats, cfg.Seed, self)
+	c.groups.SetOnMessage(cfg.OnGroupMessage)
 	return c, nil
 }
 
@@ -135,6 +141,7 @@ func (c *Core) Run(ctx context.Context) error {
 	wg.Go(func() { _ = c.outbox.Run(ctx) })
 	wg.Go(func() { _ = c.contacts.RunPresence(ctx) })
 	wg.Go(func() { _ = c.blobs.Run(ctx) })
+	wg.Go(func() { _ = c.groups.Run(ctx) })
 
 	nodeErr := make(chan error, 1)
 	go func() { nodeErr <- c.node.Run(ctx) }()
@@ -196,3 +203,6 @@ func (c *Core) Chats() *chat.Manager { return c.chats }
 
 // Files — передача файлов.
 func (c *Core) Files() *blob.Manager { return c.blobs }
+
+// Groups — групповые чаты.
+func (c *Core) Groups() *group.Manager { return c.groups }

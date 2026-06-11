@@ -104,6 +104,44 @@ CREATE TABLE files (
 ) WITHOUT ROWID;
 CREATE INDEX files_peer ON files (peer);
 `,
+	// v5: группы — членство с подписью админа, sender keys, отправитель в
+	// истории, персистентная очередь sealed-рассылок до появления сессии.
+	`
+ALTER TABLE messages ADD COLUMN sender BLOB;
+
+CREATE TABLE groups (
+  group_id   BLOB PRIMARY KEY,
+  name_ct    BLOB,
+  admin_pub  BLOB    NOT NULL,
+  version    INTEGER NOT NULL,
+  membership_ct BLOB NOT NULL,
+  left       INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE group_members (
+  group_id BLOB NOT NULL,
+  member   BLOB NOT NULL,
+  PRIMARY KEY (group_id, member)
+) WITHOUT ROWID;
+
+CREATE TABLE sender_keys (
+  group_id   BLOB NOT NULL,
+  member     BLOB NOT NULL,
+  state_ct   BLOB NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (group_id, member)
+) WITHOUT ROWID;
+
+CREATE TABLE sealed_outbox (
+  id         INTEGER PRIMARY KEY,
+  peer       BLOB    NOT NULL,
+  env_type   INTEGER NOT NULL,
+  payload_ct BLOB    NOT NULL,
+  created_at INTEGER NOT NULL
+);
+`,
 }
 
 // migrate доводит схему до актуальной версии; каждая миграция — своя

@@ -116,7 +116,7 @@ func (t *Tx) PendingChatTake(p peer.ID) ([]envelope.MsgID, error) {
 // GetMessage — сообщение по ключу истории внутри транзакции.
 func (t *Tx) GetMessage(p peer.ID, mid envelope.MsgID, outgoing bool) (Message, bool, error) {
 	row := t.tx.QueryRowContext(t.ctx,
-		`SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct
+		`SELECT peer, msg_id, outgoing, from_seq, lamport, sent_at, status, deleted, body_ct, sender
 		 FROM messages WHERE peer = ? AND outgoing = ? AND msg_id = ?`,
 		p[:], boolInt(outgoing), mid[:])
 	m, err := scanMessage(row, t.box)

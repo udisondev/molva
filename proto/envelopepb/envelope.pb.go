@@ -47,6 +47,12 @@ const (
 	Type_TYPE_FILE_CHUNK_REQ Type = 11
 	// Чанк файла: открытый Chunk (контент зашифрован файловым ключом).
 	Type_TYPE_FILE_CHUNK Type = 12
+	// Приглашение в группу: ratchet-сообщение с Welcome внутри.
+	Type_TYPE_GROUP_WELCOME Type = 13
+	// Новая версия членства: ratchet-сообщение с Update внутри.
+	Type_TYPE_GROUP_UPDATE Type = 14
+	// Раздача sender key: ratchet-сообщение с SenderKeyDist внутри.
+	Type_TYPE_GROUP_KEY Type = 15
 )
 
 // Enum value maps for Type.
@@ -65,6 +71,9 @@ var (
 		10: "TYPE_FILE_MANIFEST",
 		11: "TYPE_FILE_CHUNK_REQ",
 		12: "TYPE_FILE_CHUNK",
+		13: "TYPE_GROUP_WELCOME",
+		14: "TYPE_GROUP_UPDATE",
+		15: "TYPE_GROUP_KEY",
 	}
 	Type_value = map[string]int32{
 		"TYPE_UNSPECIFIED":      0,
@@ -80,6 +89,9 @@ var (
 		"TYPE_FILE_MANIFEST":    10,
 		"TYPE_FILE_CHUNK_REQ":   11,
 		"TYPE_FILE_CHUNK":       12,
+		"TYPE_GROUP_WELCOME":    13,
+		"TYPE_GROUP_UPDATE":     14,
+		"TYPE_GROUP_KEY":        15,
 	}
 )
 
@@ -207,7 +219,7 @@ const file_envelope_proto_rawDesc = "" +
 	"\bfrom_seq\x18\x03 \x01(\x04R\afromSeq\x12\x1d\n" +
 	"\n" +
 	"lamport_ts\x18\x04 \x01(\x04R\tlamportTs\x12\x18\n" +
-	"\apayload\x18\x05 \x01(\fR\apayload*\x93\x02\n" +
+	"\apayload\x18\x05 \x01(\fR\apayload*\xd6\x02\n" +
 	"\x04Type\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\f\n" +
 	"\bTYPE_ACK\x10\x01\x12\x0e\n" +
@@ -224,7 +236,10 @@ const file_envelope_proto_rawDesc = "" +
 	"\x12TYPE_FILE_MANIFEST\x10\n" +
 	"\x12\x17\n" +
 	"\x13TYPE_FILE_CHUNK_REQ\x10\v\x12\x13\n" +
-	"\x0fTYPE_FILE_CHUNK\x10\fB-Z+github.com/udisondev/molva/proto/envelopepbb\x06proto3"
+	"\x0fTYPE_FILE_CHUNK\x10\f\x12\x16\n" +
+	"\x12TYPE_GROUP_WELCOME\x10\r\x12\x15\n" +
+	"\x11TYPE_GROUP_UPDATE\x10\x0e\x12\x12\n" +
+	"\x0eTYPE_GROUP_KEY\x10\x0fB-Z+github.com/udisondev/molva/proto/envelopepbb\x06proto3"
 
 var (
 	file_envelope_proto_rawDescOnce sync.Once
