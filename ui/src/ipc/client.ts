@@ -5,6 +5,18 @@ import { Command, CommandResult, Event as CoreEvent, Frame, Hello } from "../gen
 
 export type EventHandler = (ev: CoreEvent) => void;
 export type StatusHandler = (connected: boolean) => void;
+export type MediaHandler = (ch: number, rxMicros: bigint, payload: Uint8Array) => void;
+
+// Теги кадров WS: первый байт.
+const TAG_PROTO = 0x00;
+const TAG_MEDIA = 0x01;
+
+function wrapProto(b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(b.length + 1);
+  out[0] = TAG_PROTO;
+  out.set(b, 1);
+  return out;
+}
 
 const RECONNECT_DELAY_MS = 1500;
 
@@ -16,6 +28,7 @@ export class MolvaClient {
 
   onEvent: EventHandler = () => {};
   onStatus: StatusHandler = () => {};
+  onMedia: MediaHandler = () => {};
 
   start(): void {
     void this.connectLoop();
@@ -48,17 +61,28 @@ export class MolvaClient {
 
         ws.onopen = () => {
           ws.send(
-            Frame.encode({
-              kind: { $case: "hello", hello: Hello.create({ token: hexToBytes(token) }) },
-            }).finish(),
+            wrapProto(
+              Frame.encode({
+                kind: { $case: "hello", hello: Hello.create({ token: hexToBytes(token) }) },
+              }).finish(),
+            ),
           );
           this.onStatus(true);
         };
         ws.onmessage = (m) => {
           if (!(m.data instanceof ArrayBuffer)) return;
+          const raw = new Uint8Array(m.data);
+          if (raw.length === 0) return;
+          if (raw[0] === TAG_MEDIA) {
+            if (raw.length <= 10) return;
+            const view = new DataView(raw.buffer, raw.byteOffset);
+            this.onMedia(raw[1], view.getBigInt64(2), raw.subarray(10));
+            return;
+          }
+          if (raw[0] !== TAG_PROTO) return;
           let frame: Frame;
           try {
-            frame = Frame.decode(new Uint8Array(m.data));
+            frame = Frame.decode(raw.subarray(1));
           } catch {
             return;
           }
@@ -93,13 +117,27 @@ export class MolvaClient {
       return Promise.resolve(CommandResult.create({ error: "нет соединения с ядром" }));
     }
     const id = this.nextId++;
-    const frame = Frame.encode({
-      kind: { $case: "command", command: Command.create({ id, kind }) },
-    }).finish();
+    const frame = wrapProto(
+      Frame.encode({
+        kind: { $case: "command", command: Command.create({ id, kind }) },
+      }).finish(),
+    );
     return new Promise((resolve) => {
       this.pending.set(id, resolve);
       ws.send(frame);
     });
+  }
+
+  // sendMedia шлёт медиакадр звонка (канал 16 — аудио, 17 — видео).
+  sendMedia(ch: number, payload: Uint8Array): void {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const out = new Uint8Array(10 + payload.length);
+    out[0] = TAG_MEDIA;
+    out[1] = ch;
+    // rx-микросекунды значимы только для входящих; исходящие — нули.
+    out.set(payload, 10);
+    ws.send(out);
   }
 }
 

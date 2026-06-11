@@ -41,7 +41,27 @@ export interface Command {
     | { $case: "listMessages"; listMessages: ListMessages }
     | { $case: "myInvite"; myInvite: MyInvite }
     | { $case: "offerFile"; offerFile: OfferFile }
+    | { $case: "callStart"; callStart: CallStart }
+    | { $case: "callAccept"; callAccept: CallAccept }
+    | { $case: "callReject"; callReject: CallReject }
+    | { $case: "callHangup"; callHangup: CallHangup }
     | undefined;
+}
+
+export interface CallStart {
+  peer: Uint8Array;
+}
+
+export interface CallAccept {
+  callId: Uint8Array;
+}
+
+export interface CallReject {
+  callId: Uint8Array;
+}
+
+export interface CallHangup {
+  callId: Uint8Array;
 }
 
 /** Предложить контакту файл по локальному пути (путь даёт диалог оболочки). */
@@ -117,7 +137,67 @@ export interface Event {
     | { $case: "fileOffered"; fileOffered: FileOffered }
     | { $case: "fileProgress"; fileProgress: FileProgress }
     | { $case: "fileDone"; fileDone: FileDone }
+    | { $case: "callEvent"; callEvent: CallEvent }
     | undefined;
+}
+
+/** Событие звонка: входящий/смена состояния/переустановка пути. */
+export interface CallEvent {
+  callId: Uint8Array;
+  peer: Uint8Array;
+  state: CallEvent_State;
+  reconnecting: boolean;
+}
+
+export enum CallEvent_State {
+  STATE_UNSPECIFIED = 0,
+  STATE_RINGING_OUT = 1,
+  STATE_RINGING_IN = 2,
+  STATE_ACTIVE = 3,
+  STATE_ENDED = 4,
+  UNRECOGNIZED = -1,
+}
+
+export function callEvent_StateFromJSON(object: any): CallEvent_State {
+  switch (object) {
+    case 0:
+    case "STATE_UNSPECIFIED":
+      return CallEvent_State.STATE_UNSPECIFIED;
+    case 1:
+    case "STATE_RINGING_OUT":
+      return CallEvent_State.STATE_RINGING_OUT;
+    case 2:
+    case "STATE_RINGING_IN":
+      return CallEvent_State.STATE_RINGING_IN;
+    case 3:
+    case "STATE_ACTIVE":
+      return CallEvent_State.STATE_ACTIVE;
+    case 4:
+    case "STATE_ENDED":
+      return CallEvent_State.STATE_ENDED;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return CallEvent_State.UNRECOGNIZED;
+  }
+}
+
+export function callEvent_StateToJSON(object: CallEvent_State): string {
+  switch (object) {
+    case CallEvent_State.STATE_UNSPECIFIED:
+      return "STATE_UNSPECIFIED";
+    case CallEvent_State.STATE_RINGING_OUT:
+      return "STATE_RINGING_OUT";
+    case CallEvent_State.STATE_RINGING_IN:
+      return "STATE_RINGING_IN";
+    case CallEvent_State.STATE_ACTIVE:
+      return "STATE_ACTIVE";
+    case CallEvent_State.STATE_ENDED:
+      return "STATE_ENDED";
+    case CallEvent_State.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
 }
 
 export interface FileOffered {
@@ -536,6 +616,18 @@ export const Command: MessageFns<Command> = {
       case "offerFile":
         OfferFile.encode(message.kind.offerFile, writer.uint32(106).fork()).join();
         break;
+      case "callStart":
+        CallStart.encode(message.kind.callStart, writer.uint32(114).fork()).join();
+        break;
+      case "callAccept":
+        CallAccept.encode(message.kind.callAccept, writer.uint32(122).fork()).join();
+        break;
+      case "callReject":
+        CallReject.encode(message.kind.callReject, writer.uint32(130).fork()).join();
+        break;
+      case "callHangup":
+        CallHangup.encode(message.kind.callHangup, writer.uint32(138).fork()).join();
+        break;
     }
     return writer;
   },
@@ -651,6 +743,38 @@ export const Command: MessageFns<Command> = {
           message.kind = { $case: "offerFile", offerFile: OfferFile.decode(reader, reader.uint32()) };
           continue;
         }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.kind = { $case: "callStart", callStart: CallStart.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.kind = { $case: "callAccept", callAccept: CallAccept.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.kind = { $case: "callReject", callReject: CallReject.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.kind = { $case: "callHangup", callHangup: CallHangup.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -711,6 +835,22 @@ export const Command: MessageFns<Command> = {
         ? { $case: "offerFile", offerFile: OfferFile.fromJSON(object.offerFile) }
         : isSet(object.offer_file)
         ? { $case: "offerFile", offerFile: OfferFile.fromJSON(object.offer_file) }
+        : isSet(object.callStart)
+        ? { $case: "callStart", callStart: CallStart.fromJSON(object.callStart) }
+        : isSet(object.call_start)
+        ? { $case: "callStart", callStart: CallStart.fromJSON(object.call_start) }
+        : isSet(object.callAccept)
+        ? { $case: "callAccept", callAccept: CallAccept.fromJSON(object.callAccept) }
+        : isSet(object.call_accept)
+        ? { $case: "callAccept", callAccept: CallAccept.fromJSON(object.call_accept) }
+        : isSet(object.callReject)
+        ? { $case: "callReject", callReject: CallReject.fromJSON(object.callReject) }
+        : isSet(object.call_reject)
+        ? { $case: "callReject", callReject: CallReject.fromJSON(object.call_reject) }
+        : isSet(object.callHangup)
+        ? { $case: "callHangup", callHangup: CallHangup.fromJSON(object.callHangup) }
+        : isSet(object.call_hangup)
+        ? { $case: "callHangup", callHangup: CallHangup.fromJSON(object.call_hangup) }
         : undefined,
     };
   },
@@ -744,6 +884,14 @@ export const Command: MessageFns<Command> = {
       obj.myInvite = MyInvite.toJSON(message.kind.myInvite);
     } else if (message.kind?.$case === "offerFile") {
       obj.offerFile = OfferFile.toJSON(message.kind.offerFile);
+    } else if (message.kind?.$case === "callStart") {
+      obj.callStart = CallStart.toJSON(message.kind.callStart);
+    } else if (message.kind?.$case === "callAccept") {
+      obj.callAccept = CallAccept.toJSON(message.kind.callAccept);
+    } else if (message.kind?.$case === "callReject") {
+      obj.callReject = CallReject.toJSON(message.kind.callReject);
+    } else if (message.kind?.$case === "callHangup") {
+      obj.callHangup = CallHangup.toJSON(message.kind.callHangup);
     }
     return obj;
   },
@@ -839,7 +987,281 @@ export const Command: MessageFns<Command> = {
         }
         break;
       }
+      case "callStart": {
+        if (object.kind?.callStart !== undefined && object.kind?.callStart !== null) {
+          message.kind = { $case: "callStart", callStart: CallStart.fromPartial(object.kind.callStart) };
+        }
+        break;
+      }
+      case "callAccept": {
+        if (object.kind?.callAccept !== undefined && object.kind?.callAccept !== null) {
+          message.kind = { $case: "callAccept", callAccept: CallAccept.fromPartial(object.kind.callAccept) };
+        }
+        break;
+      }
+      case "callReject": {
+        if (object.kind?.callReject !== undefined && object.kind?.callReject !== null) {
+          message.kind = { $case: "callReject", callReject: CallReject.fromPartial(object.kind.callReject) };
+        }
+        break;
+      }
+      case "callHangup": {
+        if (object.kind?.callHangup !== undefined && object.kind?.callHangup !== null) {
+          message.kind = { $case: "callHangup", callHangup: CallHangup.fromPartial(object.kind.callHangup) };
+        }
+        break;
+      }
     }
+    return message;
+  },
+};
+
+function createBaseCallStart(): CallStart {
+  return { peer: new Uint8Array(0) };
+}
+
+export const CallStart: MessageFns<CallStart> = {
+  encode(message: CallStart, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.peer.length !== 0) {
+      writer.uint32(10).bytes(message.peer);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CallStart {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCallStart();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.peer = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CallStart {
+    return { peer: isSet(object.peer) ? bytesFromBase64(object.peer) : new Uint8Array(0) };
+  },
+
+  toJSON(message: CallStart): unknown {
+    const obj: any = {};
+    if (message.peer.length !== 0) {
+      obj.peer = base64FromBytes(message.peer);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CallStart>, I>>(base?: I): CallStart {
+    return CallStart.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CallStart>, I>>(object: I): CallStart {
+    const message = createBaseCallStart();
+    message.peer = object.peer ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseCallAccept(): CallAccept {
+  return { callId: new Uint8Array(0) };
+}
+
+export const CallAccept: MessageFns<CallAccept> = {
+  encode(message: CallAccept, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.callId.length !== 0) {
+      writer.uint32(10).bytes(message.callId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CallAccept {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCallAccept();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.callId = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CallAccept {
+    return {
+      callId: isSet(object.callId)
+        ? bytesFromBase64(object.callId)
+        : isSet(object.call_id)
+        ? bytesFromBase64(object.call_id)
+        : new Uint8Array(0),
+    };
+  },
+
+  toJSON(message: CallAccept): unknown {
+    const obj: any = {};
+    if (message.callId.length !== 0) {
+      obj.callId = base64FromBytes(message.callId);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CallAccept>, I>>(base?: I): CallAccept {
+    return CallAccept.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CallAccept>, I>>(object: I): CallAccept {
+    const message = createBaseCallAccept();
+    message.callId = object.callId ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseCallReject(): CallReject {
+  return { callId: new Uint8Array(0) };
+}
+
+export const CallReject: MessageFns<CallReject> = {
+  encode(message: CallReject, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.callId.length !== 0) {
+      writer.uint32(10).bytes(message.callId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CallReject {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCallReject();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.callId = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CallReject {
+    return {
+      callId: isSet(object.callId)
+        ? bytesFromBase64(object.callId)
+        : isSet(object.call_id)
+        ? bytesFromBase64(object.call_id)
+        : new Uint8Array(0),
+    };
+  },
+
+  toJSON(message: CallReject): unknown {
+    const obj: any = {};
+    if (message.callId.length !== 0) {
+      obj.callId = base64FromBytes(message.callId);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CallReject>, I>>(base?: I): CallReject {
+    return CallReject.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CallReject>, I>>(object: I): CallReject {
+    const message = createBaseCallReject();
+    message.callId = object.callId ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseCallHangup(): CallHangup {
+  return { callId: new Uint8Array(0) };
+}
+
+export const CallHangup: MessageFns<CallHangup> = {
+  encode(message: CallHangup, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.callId.length !== 0) {
+      writer.uint32(10).bytes(message.callId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CallHangup {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCallHangup();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.callId = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CallHangup {
+    return {
+      callId: isSet(object.callId)
+        ? bytesFromBase64(object.callId)
+        : isSet(object.call_id)
+        ? bytesFromBase64(object.call_id)
+        : new Uint8Array(0),
+    };
+  },
+
+  toJSON(message: CallHangup): unknown {
+    const obj: any = {};
+    if (message.callId.length !== 0) {
+      obj.callId = base64FromBytes(message.callId);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CallHangup>, I>>(base?: I): CallHangup {
+    return CallHangup.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CallHangup>, I>>(object: I): CallHangup {
+    const message = createBaseCallHangup();
+    message.callId = object.callId ?? new Uint8Array(0);
     return message;
   },
 };
@@ -1676,6 +2098,9 @@ export const Event: MessageFns<Event> = {
       case "fileDone":
         FileDone.encode(message.kind.fileDone, writer.uint32(74).fork()).join();
         break;
+      case "callEvent":
+        CallEvent.encode(message.kind.callEvent, writer.uint32(82).fork()).join();
+        break;
     }
     return writer;
   },
@@ -1765,6 +2190,14 @@ export const Event: MessageFns<Event> = {
           message.kind = { $case: "fileDone", fileDone: FileDone.decode(reader, reader.uint32()) };
           continue;
         }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.kind = { $case: "callEvent", callEvent: CallEvent.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1812,6 +2245,10 @@ export const Event: MessageFns<Event> = {
         ? { $case: "fileDone", fileDone: FileDone.fromJSON(object.fileDone) }
         : isSet(object.file_done)
         ? { $case: "fileDone", fileDone: FileDone.fromJSON(object.file_done) }
+        : isSet(object.callEvent)
+        ? { $case: "callEvent", callEvent: CallEvent.fromJSON(object.callEvent) }
+        : isSet(object.call_event)
+        ? { $case: "callEvent", callEvent: CallEvent.fromJSON(object.call_event) }
         : undefined,
     };
   },
@@ -1836,6 +2273,8 @@ export const Event: MessageFns<Event> = {
       obj.fileProgress = FileProgress.toJSON(message.kind.fileProgress);
     } else if (message.kind?.$case === "fileDone") {
       obj.fileDone = FileDone.toJSON(message.kind.fileDone);
+    } else if (message.kind?.$case === "callEvent") {
+      obj.callEvent = CallEvent.toJSON(message.kind.callEvent);
     }
     return obj;
   },
@@ -1918,7 +2357,125 @@ export const Event: MessageFns<Event> = {
         }
         break;
       }
+      case "callEvent": {
+        if (object.kind?.callEvent !== undefined && object.kind?.callEvent !== null) {
+          message.kind = { $case: "callEvent", callEvent: CallEvent.fromPartial(object.kind.callEvent) };
+        }
+        break;
+      }
     }
+    return message;
+  },
+};
+
+function createBaseCallEvent(): CallEvent {
+  return { callId: new Uint8Array(0), peer: new Uint8Array(0), state: 0, reconnecting: false };
+}
+
+export const CallEvent: MessageFns<CallEvent> = {
+  encode(message: CallEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.callId.length !== 0) {
+      writer.uint32(10).bytes(message.callId);
+    }
+    if (message.peer.length !== 0) {
+      writer.uint32(18).bytes(message.peer);
+    }
+    if (message.state !== 0) {
+      writer.uint32(24).int32(message.state);
+    }
+    if (message.reconnecting !== false) {
+      writer.uint32(32).bool(message.reconnecting);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CallEvent {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCallEvent();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.callId = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.peer = reader.bytes();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.state = reader.int32() as any;
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.reconnecting = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CallEvent {
+    return {
+      callId: isSet(object.callId)
+        ? bytesFromBase64(object.callId)
+        : isSet(object.call_id)
+        ? bytesFromBase64(object.call_id)
+        : new Uint8Array(0),
+      peer: isSet(object.peer) ? bytesFromBase64(object.peer) : new Uint8Array(0),
+      state: isSet(object.state) ? callEvent_StateFromJSON(object.state) : 0,
+      reconnecting: isSet(object.reconnecting) ? globalThis.Boolean(object.reconnecting) : false,
+    };
+  },
+
+  toJSON(message: CallEvent): unknown {
+    const obj: any = {};
+    if (message.callId.length !== 0) {
+      obj.callId = base64FromBytes(message.callId);
+    }
+    if (message.peer.length !== 0) {
+      obj.peer = base64FromBytes(message.peer);
+    }
+    if (message.state !== 0) {
+      obj.state = callEvent_StateToJSON(message.state);
+    }
+    if (message.reconnecting !== false) {
+      obj.reconnecting = message.reconnecting;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CallEvent>, I>>(base?: I): CallEvent {
+    return CallEvent.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CallEvent>, I>>(object: I): CallEvent {
+    const message = createBaseCallEvent();
+    message.callId = object.callId ?? new Uint8Array(0);
+    message.peer = object.peer ?? new Uint8Array(0);
+    message.state = object.state ?? 0;
+    message.reconnecting = object.reconnecting ?? false;
     return message;
   },
 };

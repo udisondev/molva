@@ -10,12 +10,15 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/udisondev/molva/blob"
+	"github.com/udisondev/molva/callsig"
 	"github.com/udisondev/molva/chat"
 	"github.com/udisondev/molva/contact"
 	"github.com/udisondev/molva/envelope"
 	"github.com/udisondev/molva/group"
+	"github.com/udisondev/molva/media"
 	"github.com/udisondev/molva/outbox"
 	"github.com/udisondev/molva/peer"
 	"github.com/udisondev/molva/store"
@@ -57,6 +60,12 @@ type Config struct {
 	OnFileProgress   func(fileID [16]byte, have, total int)
 	OnFileDone       func(fileID [16]byte, path string)
 	OnGroupMessage   func(store.Message)
+	OnCallIncoming   func(callsig.Call)
+	OnCallState      func(callsig.Call)
+	// OnMediaFrame — входящий медиакадр звонка; payload алиасит пул
+	// транспорта, использовать строго синхронно.
+	OnMediaFrame       func(ch uint8, rx time.Time, payload []byte)
+	OnCallReconnecting func(callID [16]byte)
 }
 
 // Core — работающее ядро molva: nodenet-узел, хранилище, движок надёжной
@@ -71,6 +80,9 @@ type Core struct {
 	chats    *chat.Manager
 	blobs    *blob.Manager
 	groups   *group.Manager
+	calls    *callsig.Manager
+	bridge   *media.Bridge
+	onReconn func(callID [16]byte)
 	tap      func(from node.ID, payload []byte)
 }
 
@@ -86,19 +98,21 @@ func New(cfg Config) (*Core, error) {
 		return nil, err
 	}
 
-	opts := []node.Option{node.WithDmin(cfg.Dmin)}
+	c0 := &Core{} // ранняя ссылка для consent-замыкания (заполняется ниже)
+	opts := []node.Option{
+		node.WithDmin(cfg.Dmin),
+		node.WithMediaConsent(func(remote node.ID) bool {
+			return c0.calls != nil && c0.calls.Consent(peer.ID(remote))
+		}),
+	}
 	if cfg.Maintenance != nil {
 		opts = append(opts, node.WithMaintenance(*cfg.Maintenance))
 	}
 	n := node.New(id, cfg.Transport, opts...)
 	n.Bootstrap(cfg.Bootstrap)
 
-	c := &Core{
-		id:   id,
-		node: n,
-		db:   db,
-		tap:  cfg.OnDelivery,
-	}
+	c := c0
+	c.id, c.node, c.db, c.tap = id, n, db, cfg.OnDelivery
 	c.outbox = outbox.NewManager(db, c.sendQueued, c.sendControl)
 	c.outbox.SetOnDelivered(cfg.OnDelivered)
 
@@ -128,7 +142,56 @@ func New(cfg Config) (*Core, error) {
 
 	c.groups = group.NewManager(db, c.outbox, c.chats, cfg.Seed, self)
 	c.groups.SetOnMessage(cfg.OnGroupMessage)
+
+	c.bridge = media.NewBridge(cfg.OnMediaFrame, c.onMediaClosed)
+	c.calls = callsig.NewManager(c.chats, self)
+	c.onReconn = cfg.OnCallReconnecting
+	c.calls.SetCallbacks(cfg.OnCallIncoming, func(call callsig.Call) {
+		if cfg.OnCallState != nil {
+			cfg.OnCallState(call)
+		}
+		switch call.State {
+		case callsig.StateActive:
+			// Медиасессию открывает звонивший; ответившему она прилетит
+			// в InboundMedia через consent-гейт.
+			if call.Outgoing {
+				go c.openMedia(call)
+			}
+		case callsig.StateEnded:
+			c.bridge.Detach()
+		}
+	})
 	return c, nil
+}
+
+// openMedia открывает медиапуть звонка (полный connect-каскад внутри).
+func (c *Core) openMedia(call callsig.Call) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	s, err := c.node.OpenMedia(ctx, node.ID(call.Peer))
+	if err != nil {
+		return // путь не поднялся: пере-попытку даст следующий onMediaClosed/hangup
+	}
+	if cur, ok := c.calls.Current(); !ok || cur.ID != call.ID || cur.State != callsig.StateActive {
+		_ = s.Close()
+		return
+	}
+	c.bridge.Attach(s)
+}
+
+// onMediaClosed — смерть медиапути: make-before-break, повторный
+// OpenMedia делает звонивший; звонок при этом живёт.
+func (c *Core) onMediaClosed() {
+	call, ok := c.calls.Current()
+	if !ok || call.State != callsig.StateActive {
+		return
+	}
+	if c.onReconn != nil {
+		c.onReconn(call.ID)
+	}
+	if call.Outgoing {
+		go c.openMedia(call)
+	}
 }
 
 // Run запускает узел, движок ретраев и петлю входящих; живёт до отмены ctx
@@ -145,6 +208,19 @@ func (c *Core) Run(ctx context.Context) error {
 
 	nodeErr := make(chan error, 1)
 	go func() { nodeErr <- c.node.Run(ctx) }()
+
+	// Входящие медиасессии: consent-гейт nodenet уже пропустил только
+	// активный звонок; сверяем с текущим и подключаем к мосту.
+	wg.Go(func() {
+		for s := range c.node.InboundMedia() {
+			call, ok := c.calls.Current()
+			if ok && call.State == callsig.StateActive && peer.ID(s.Remote()) == call.Peer {
+				c.bridge.Attach(s)
+			} else {
+				_ = s.Close()
+			}
+		}
+	})
 
 	for d := range c.node.Deliveries() {
 		if c.tap != nil {
@@ -206,3 +282,9 @@ func (c *Core) Files() *blob.Manager { return c.blobs }
 
 // Groups — групповые чаты.
 func (c *Core) Groups() *group.Manager { return c.groups }
+
+// Calls — сигналинг звонков.
+func (c *Core) Calls() *callsig.Manager { return c.calls }
+
+// Media — медиамост активного звонка.
+func (c *Core) Media() *media.Bridge { return c.bridge }

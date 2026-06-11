@@ -41,6 +41,10 @@ export enum Type {
   TYPE_GROUP_UPDATE = 14,
   /** TYPE_GROUP_KEY - Раздача sender key: ratchet-сообщение с SenderKeyDist внутри. */
   TYPE_GROUP_KEY = 15,
+  /** TYPE_CALL_OFFER - Сигналинг звонков: ratchet-сообщения с Offer/Answer/Hangup внутри. */
+  TYPE_CALL_OFFER = 16,
+  TYPE_CALL_ANSWER = 17,
+  TYPE_CALL_HANGUP = 18,
   UNRECOGNIZED = -1,
 }
 
@@ -94,6 +98,15 @@ export function typeFromJSON(object: any): Type {
     case 15:
     case "TYPE_GROUP_KEY":
       return Type.TYPE_GROUP_KEY;
+    case 16:
+    case "TYPE_CALL_OFFER":
+      return Type.TYPE_CALL_OFFER;
+    case 17:
+    case "TYPE_CALL_ANSWER":
+      return Type.TYPE_CALL_ANSWER;
+    case 18:
+    case "TYPE_CALL_HANGUP":
+      return Type.TYPE_CALL_HANGUP;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -135,6 +148,12 @@ export function typeToJSON(object: Type): string {
       return "TYPE_GROUP_UPDATE";
     case Type.TYPE_GROUP_KEY:
       return "TYPE_GROUP_KEY";
+    case Type.TYPE_CALL_OFFER:
+      return "TYPE_CALL_OFFER";
+    case Type.TYPE_CALL_ANSWER:
+      return "TYPE_CALL_ANSWER";
+    case Type.TYPE_CALL_HANGUP:
+      return "TYPE_CALL_HANGUP";
     case Type.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";

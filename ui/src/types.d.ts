@@ -6,3 +6,10 @@ interface Window {
     pickFile(): Promise<string | null>;
   };
 }
+
+// MediaStreamTrackProcessor — API Chromium (есть в Electron), отсутствует
+// в стандартных DOM-типах.
+declare class MediaStreamTrackProcessor<T> {
+  constructor(init: { track: MediaStreamTrack });
+  readable: ReadableStream<T>;
+}

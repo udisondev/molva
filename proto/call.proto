@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package molva.call.v1;
+
+option go_package = "github.com/udisondev/molva/proto/callpb";
+
+// Сигналинг звонков: едет по ratchet-сессиям надёжными конвертами.
+// Транспорт реального времени — медиаканал nodenet, консент-гейт пускает
+// сессию только при активном принятом звонке с этим пиром.
+
+message Offer {
+  bytes call_id = 1;          // 16 случайных байт
+  repeated string codecs = 2; // предлагаемые кодеки ("opus", "vp8")
+}
+
+// Ответ на оффер: принят или отвергнут.
+message Answer {
+  bytes call_id = 1;
+  bool accept = 2;
+}
+
+message Hangup {
+  bytes call_id = 1;
+}

@@ -52,4 +52,8 @@ enum Type {
   TYPE_GROUP_UPDATE = 14;
   // Раздача sender key: ratchet-сообщение с SenderKeyDist внутри.
   TYPE_GROUP_KEY = 15;
+  // Сигналинг звонков: ratchet-сообщения с Offer/Answer/Hangup внутри.
+  TYPE_CALL_OFFER = 16;
+  TYPE_CALL_ANSWER = 17;
+  TYPE_CALL_HANGUP = 18;
 }

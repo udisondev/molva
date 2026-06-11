@@ -1,13 +1,16 @@
 package apptest
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/udisondev/molva/app"
+	"github.com/udisondev/molva/callsig"
 	"github.com/udisondev/nodenet/identity"
 	"github.com/udisondev/nodenet/node"
 	"github.com/udisondev/nodenet/routing"
@@ -18,6 +21,13 @@ import (
 // Delivery — перехваченный входящий payload уровня nodenet.
 type Delivery struct {
 	From    node.ID
+	Payload []byte
+}
+
+// MediaFrame — перехваченный входящий медиакадр (payload скопирован).
+type MediaFrame struct {
+	Ch      uint8
+	Rx      time.Time
 	Payload []byte
 }
 
@@ -40,6 +50,9 @@ type Node struct {
 
 	inbox        chan Delivery
 	inboxDropped atomic.Uint64
+	mediaIn      chan MediaFrame
+	callsIn      chan callsig.Call
+	callStates   chan callsig.Call
 
 	mu     sync.Mutex
 	alive  bool
@@ -61,6 +74,9 @@ func newNode(t *testing.T, hub *mem.Hub, index int, dataDir string, setup SetupF
 		dataDir: dataDir,
 		setup:   setup,
 		inbox:   make(chan Delivery, 1024),
+		mediaIn: make(chan MediaFrame, 4096),
+		callsIn: make(chan callsig.Call, 16),
+		callStates: make(chan callsig.Call, 64),
 	}
 }
 
@@ -89,6 +105,24 @@ func (n *Node) start(contacts []routing.Contact) {
 			case n.inbox <- Delivery{From: from, Payload: payload}:
 			default:
 				n.inboxDropped.Add(1)
+			}
+		},
+		OnMediaFrame: func(ch uint8, rx time.Time, payload []byte) {
+			select {
+			case n.mediaIn <- MediaFrame{Ch: ch, Rx: rx, Payload: bytes.Clone(payload)}:
+			default:
+			}
+		},
+		OnCallIncoming: func(c callsig.Call) {
+			select {
+			case n.callsIn <- c:
+			default:
+			}
+		},
+		OnCallState: func(c callsig.Call) {
+			select {
+			case n.callStates <- c:
+			default:
 			}
 		},
 	})
@@ -146,6 +180,15 @@ func (n *Node) DataDir() string { return n.dataDir }
 
 // Inbox — перехваченные входящие payload'ы уровня nodenet.
 func (n *Node) Inbox() <-chan Delivery { return n.inbox }
+
+// MediaIn — перехваченные входящие медиакадры звонка.
+func (n *Node) MediaIn() <-chan MediaFrame { return n.mediaIn }
+
+// CallsIn — входящие звонки.
+func (n *Node) CallsIn() <-chan callsig.Call { return n.callsIn }
+
+// CallStates — смены состояний звонков.
+func (n *Node) CallStates() <-chan callsig.Call { return n.callStates }
 
 // InboxDropped — сколько входящих не влезло в перехват (тест обязан
 // вычитывать вовремя; ненулевое значение — сигнал ошибки сценария).

@@ -1,10 +1,11 @@
 import { Chat_State } from "./gen/ipc";
+import { CallBar } from "./components/CallBar";
 import { ChatList } from "./components/ChatList";
 import { Composer } from "./components/Composer";
 import { ContactCard } from "./components/ContactCard";
 import { Thread } from "./components/Thread";
 import { AddContactModal, InviteModal } from "./components/Modals";
-import { setModal, toggleDrawer, useStore } from "./state/store";
+import { setModal, startCall, toggleDrawer, useStore } from "./state/store";
 
 export function App() {
   const { connected, selected, chats, drawer, modal, toast } = useStore();
@@ -22,6 +23,7 @@ export function App() {
           + на связь
         </button>
       </header>
+      <CallBar />
 
       <div className="body">
         <nav className="rail">
@@ -39,6 +41,11 @@ export function App() {
                   {chat.peerHex.slice(0, 16)}…
                 </span>
                 <span className="spacer" style={{ flex: 1 }} />
+                {chat.state === Chat_State.STATE_CONTACT && (
+                  <button className="ghost" title="Позвонить" onClick={() => void startCall()}>
+                    ☎
+                  </button>
+                )}
                 {chat.state === Chat_State.STATE_PENDING_OUT && (
                   <span className="tag gray" style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--dim)" }}>
                     ждёт принятия на той стороне

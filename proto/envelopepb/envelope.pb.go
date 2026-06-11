@@ -53,6 +53,10 @@ const (
 	Type_TYPE_GROUP_UPDATE Type = 14
 	// Раздача sender key: ratchet-сообщение с SenderKeyDist внутри.
 	Type_TYPE_GROUP_KEY Type = 15
+	// Сигналинг звонков: ratchet-сообщения с Offer/Answer/Hangup внутри.
+	Type_TYPE_CALL_OFFER  Type = 16
+	Type_TYPE_CALL_ANSWER Type = 17
+	Type_TYPE_CALL_HANGUP Type = 18
 )
 
 // Enum value maps for Type.
@@ -74,6 +78,9 @@ var (
 		13: "TYPE_GROUP_WELCOME",
 		14: "TYPE_GROUP_UPDATE",
 		15: "TYPE_GROUP_KEY",
+		16: "TYPE_CALL_OFFER",
+		17: "TYPE_CALL_ANSWER",
+		18: "TYPE_CALL_HANGUP",
 	}
 	Type_value = map[string]int32{
 		"TYPE_UNSPECIFIED":      0,
@@ -92,6 +99,9 @@ var (
 		"TYPE_GROUP_WELCOME":    13,
 		"TYPE_GROUP_UPDATE":     14,
 		"TYPE_GROUP_KEY":        15,
+		"TYPE_CALL_OFFER":       16,
+		"TYPE_CALL_ANSWER":      17,
+		"TYPE_CALL_HANGUP":      18,
 	}
 )
 
@@ -219,7 +229,7 @@ const file_envelope_proto_rawDesc = "" +
 	"\bfrom_seq\x18\x03 \x01(\x04R\afromSeq\x12\x1d\n" +
 	"\n" +
 	"lamport_ts\x18\x04 \x01(\x04R\tlamportTs\x12\x18\n" +
-	"\apayload\x18\x05 \x01(\fR\apayload*\xd6\x02\n" +
+	"\apayload\x18\x05 \x01(\fR\apayload*\x97\x03\n" +
 	"\x04Type\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\f\n" +
 	"\bTYPE_ACK\x10\x01\x12\x0e\n" +
@@ -239,7 +249,10 @@ const file_envelope_proto_rawDesc = "" +
 	"\x0fTYPE_FILE_CHUNK\x10\f\x12\x16\n" +
 	"\x12TYPE_GROUP_WELCOME\x10\r\x12\x15\n" +
 	"\x11TYPE_GROUP_UPDATE\x10\x0e\x12\x12\n" +
-	"\x0eTYPE_GROUP_KEY\x10\x0fB-Z+github.com/udisondev/molva/proto/envelopepbb\x06proto3"
+	"\x0eTYPE_GROUP_KEY\x10\x0f\x12\x13\n" +
+	"\x0fTYPE_CALL_OFFER\x10\x10\x12\x14\n" +
+	"\x10TYPE_CALL_ANSWER\x10\x11\x12\x14\n" +
+	"\x10TYPE_CALL_HANGUP\x10\x12B-Z+github.com/udisondev/molva/proto/envelopepbb\x06proto3"
 
 var (
 	file_envelope_proto_rawDescOnce sync.Once

@@ -85,6 +85,12 @@ func (c *Cluster) Heal(i, j int) {
 	c.hub.Heal(c.nodes[i].ID(), c.nodes[j].ID())
 }
 
+// SetLinkProfile задаёт модель медиалинка в направлении i→j (потери,
+// джиттер, шейпер) — только для медиадатаграмм.
+func (c *Cluster) SetLinkProfile(i, j int, p mem.LinkProfile) {
+	c.hub.SetLinkProfile(c.nodes[i].ID(), c.nodes[j].ID(), p)
+}
+
 // WaitMesh ждёт, пока каждый живой узел получит живое ребро до каждого
 // другого живого узла. Падает тестом, если сетка не сошлась за разумное
 // виртуальное время.

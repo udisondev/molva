@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/udisondev/molva/blob"
+	"github.com/udisondev/molva/callsig"
 	"github.com/udisondev/molva/chat"
 	"github.com/udisondev/molva/contact"
 	"github.com/udisondev/molva/envelope"
@@ -47,11 +48,13 @@ type Server struct {
 	token []byte
 	grace time.Duration
 
-	chats    *chat.Manager
-	contacts *contact.Manager
-	files    *blob.Manager
-	db       *store.DB
-	self     peer.ID
+	chats     *chat.Manager
+	contacts  *contact.Manager
+	files     *blob.Manager
+	calls     *callsig.Manager
+	sendMedia func(ch uint8, payload []byte) error
+	db        *store.DB
+	self      peer.ID
 
 	ln net.Listener
 
@@ -75,11 +78,14 @@ func NewServer(token []byte, grace time.Duration) *Server {
 	}
 }
 
-// Bind подключает подсистемы ядра (до Run).
-func (s *Server) Bind(chats *chat.Manager, contacts *contact.Manager, files *blob.Manager, db *store.DB, self peer.ID) {
+// Bind подключает подсистемы ядра (до Run). sendMedia — отправка
+// медиакадра в активный звонок (мост уровня app).
+func (s *Server) Bind(chats *chat.Manager, contacts *contact.Manager, files *blob.Manager, calls *callsig.Manager, sendMedia func(ch uint8, payload []byte) error, db *store.DB, self peer.ID) {
 	s.chats = chats
 	s.contacts = contacts
 	s.files = files
+	s.calls = calls
+	s.sendMedia = sendMedia
 	s.db = db
 	s.self = self
 }
@@ -245,6 +251,17 @@ func (s *Server) readLoop(ctx context.Context, cl *client) {
 		if typ != websocket.MessageBinary {
 			continue
 		}
+		if len(data) > 0 && data[0] == TagMedia {
+			ch, _, payload, err := DecodeMediaFrame(data)
+			if err != nil {
+				s.ctr.malformed.Add(1)
+				continue
+			}
+			if s.sendMedia != nil {
+				_ = s.sendMedia(ch, payload) // backpressure — штатный сигнал
+			}
+			continue
+		}
 		f, err := DecodeFrame(data)
 		if err != nil {
 			s.ctr.malformed.Add(1)
@@ -343,6 +360,47 @@ func (s *Server) OnFileDone(fileID [16]byte, path string) {
 	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_FileDone{
 		FileDone: &ipcpb.FileDone{FileId: fileID[:], Path: path},
 	}})
+}
+
+// PushMedia шлёт входящий медиакадр звонка активному клиенту.
+// payload алиасит пул транспорта — кодируем синхронно.
+func (s *Server) PushMedia(ch uint8, rx time.Time, payload []byte) {
+	s.mu.Lock()
+	cl := s.active
+	s.mu.Unlock()
+	if cl == nil {
+		s.ctr.mediaDropped.Add(1)
+		return
+	}
+	b, err := EncodeMediaFrame(nil, ch, rx.UnixMicro(), payload)
+	if err != nil {
+		s.ctr.mediaDropped.Add(1)
+		return
+	}
+	select {
+	case cl.send <- b:
+	default:
+		s.ctr.mediaDropped.Add(1) // PLC дозвучит: медиакадры не ждут
+	}
+}
+
+// OnCallIncoming — входящий звонок.
+func (s *Server) OnCallIncoming(c callsig.Call) { s.pushCallEvent(c, false) }
+
+// OnCallState — смена состояния звонка.
+func (s *Server) OnCallState(c callsig.Call) { s.pushCallEvent(c, false) }
+
+// OnCallReconnecting — переустановка медиапути.
+func (s *Server) OnCallReconnecting(callID [16]byte) {
+	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_CallEvent{CallEvent: &ipcpb.CallEvent{
+		CallId: callID[:], Reconnecting: true, State: ipcpb.CallEvent_STATE_ACTIVE,
+	}}})
+}
+
+func (s *Server) pushCallEvent(c callsig.Call, reconnecting bool) {
+	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_CallEvent{CallEvent: &ipcpb.CallEvent{
+		CallId: c.ID[:], Peer: c.Peer[:], State: ipcpb.CallEvent_State(c.State), Reconnecting: reconnecting,
+	}}})
 }
 
 // handle исполняет команду UI и собирает результат.
@@ -465,6 +523,35 @@ func (s *Server) dispatch(ctx context.Context, cmd *ipcpb.Command, res *ipcpb.Co
 		_, err = s.files.Offer(ctx, p, k.OfferFile.Path)
 		return err
 
+	case *ipcpb.Command_CallStart:
+		p, err := parsePeer(k.CallStart.Peer)
+		if err != nil {
+			return err
+		}
+		_, err = s.calls.Start(ctx, p, []string{"opus"})
+		return err
+
+	case *ipcpb.Command_CallAccept:
+		id, err := parseCallID(k.CallAccept.CallId)
+		if err != nil {
+			return err
+		}
+		return s.calls.Accept(ctx, id)
+
+	case *ipcpb.Command_CallReject:
+		id, err := parseCallID(k.CallReject.CallId)
+		if err != nil {
+			return err
+		}
+		return s.calls.Reject(ctx, id)
+
+	case *ipcpb.Command_CallHangup:
+		id, err := parseCallID(k.CallHangup.CallId)
+		if err != nil {
+			return err
+		}
+		return s.calls.Hangup(ctx, id)
+
 	default:
 		return errors.New("ipc: неизвестная команда")
 	}
@@ -535,6 +622,15 @@ func parsePeer(b []byte) (peer.ID, error) {
 	var p peer.ID
 	copy(p[:], b)
 	return p, nil
+}
+
+func parseCallID(b []byte) ([16]byte, error) {
+	if len(b) != 16 {
+		return [16]byte{}, errors.New("ipc: кривой call id")
+	}
+	var id [16]byte
+	copy(id[:], b)
+	return id, nil
 }
 
 func parseMsgID(b []byte) (envelope.MsgID, error) {

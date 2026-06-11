@@ -79,24 +79,28 @@ func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace ti
 	srv := ipc.NewServer(token, grace)
 
 	core, err := app.New(app.Config{
-		Seed:             seed,
-		DataDir:          dataDir,
-		Transport:        tr,
-		Bootstrap:        contacts,
-		Dmin:             dmin,
-		OnMessage:        srv.OnMessage,
-		OnDelivered:      srv.OnDelivered,
-		OnContactRequest: srv.OnContactRequest,
-		OnContactAccept:  srv.OnContactAccept,
-		OnPresence:       srv.OnPresence,
-		OnFileOffered:    srv.OnFileOffered,
-		OnFileProgress:   srv.OnFileProgress,
-		OnFileDone:       srv.OnFileDone,
+		Seed:               seed,
+		DataDir:            dataDir,
+		Transport:          tr,
+		Bootstrap:          contacts,
+		Dmin:               dmin,
+		OnMessage:          srv.OnMessage,
+		OnDelivered:        srv.OnDelivered,
+		OnContactRequest:   srv.OnContactRequest,
+		OnContactAccept:    srv.OnContactAccept,
+		OnPresence:         srv.OnPresence,
+		OnFileOffered:      srv.OnFileOffered,
+		OnFileProgress:     srv.OnFileProgress,
+		OnFileDone:         srv.OnFileDone,
+		OnCallIncoming:     srv.OnCallIncoming,
+		OnCallState:        srv.OnCallState,
+		OnMediaFrame:       srv.PushMedia,
+		OnCallReconnecting: srv.OnCallReconnecting,
 	})
 	if err != nil {
 		return err
 	}
-	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Store(), peer.ID(core.ID()))
+	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Calls(), core.Media().Send, core.Store(), peer.ID(core.ID()))
 
 	port := os.Getenv("MOLVA_IPC_PORT")
 	if port == "" {

@@ -35,22 +35,26 @@ func startServer(t *testing.T) (*Server, string) {
 
 	srv := NewServer(testToken, 0)
 	core, err := app.New(app.Config{
-		Seed:             seed,
-		DataDir:          t.TempDir(),
-		Transport:        tr,
-		OnMessage:        srv.OnMessage,
-		OnDelivered:      srv.OnDelivered,
-		OnContactRequest: srv.OnContactRequest,
-		OnContactAccept:  srv.OnContactAccept,
-		OnPresence:       srv.OnPresence,
-		OnFileOffered:    srv.OnFileOffered,
-		OnFileProgress:   srv.OnFileProgress,
-		OnFileDone:       srv.OnFileDone,
+		Seed:               seed,
+		DataDir:            t.TempDir(),
+		Transport:          tr,
+		OnMessage:          srv.OnMessage,
+		OnDelivered:        srv.OnDelivered,
+		OnContactRequest:   srv.OnContactRequest,
+		OnContactAccept:    srv.OnContactAccept,
+		OnPresence:         srv.OnPresence,
+		OnFileOffered:      srv.OnFileOffered,
+		OnFileProgress:     srv.OnFileProgress,
+		OnFileDone:         srv.OnFileDone,
+		OnCallIncoming:     srv.OnCallIncoming,
+		OnCallState:        srv.OnCallState,
+		OnMediaFrame:       srv.PushMedia,
+		OnCallReconnecting: srv.OnCallReconnecting,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Store(), peer.ID(core.ID()))
+	srv.Bind(core.Chats(), core.Contacts(), core.Files(), core.Calls(), core.Media().Send, core.Store(), peer.ID(core.ID()))
 
 	coreDone := make(chan struct{})
 	go func() { defer close(coreDone); _ = core.Run(ctx) }()

@@ -76,8 +76,12 @@ const (
 	TypeGroupUpdate Type = 14
 	// TypeGroupKey — раздача sender key (внутри ratchet).
 	TypeGroupKey Type = 15
+	// TypeCallOffer/Answer/Hangup — сигналинг звонков (внутри ratchet).
+	TypeCallOffer  Type = 16
+	TypeCallAnswer Type = 17
+	TypeCallHangup Type = 18
 
-	maxType = TypeGroupKey
+	maxType = TypeCallHangup
 )
 
 // Envelope — разобранный конверт. Payload для Decode — копия входа,

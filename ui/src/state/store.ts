@@ -2,7 +2,15 @@
 // Источник правды — molvad; события дополняют, запросы пересинхронизируют.
 import { useSyncExternalStore } from "react";
 import { MolvaClient, bytesToHex } from "../ipc/client";
-import { Chat_State, Message, Message_Status, Event as CoreEvent } from "../gen/ipc";
+import { CallAudio } from "../media/audio";
+import { CallEvent_State, Chat_State, Message, Message_Status, Event as CoreEvent } from "../gen/ipc";
+
+export interface CallVM {
+  callId: Uint8Array;
+  peerHex: string;
+  state: CallEvent_State;
+  reconnecting: boolean;
+}
 
 export interface MessageVM {
   key: string; // hex msg_id
@@ -35,6 +43,7 @@ export interface State {
   modal: "invite" | "add" | null;
   invite: string;
   toast: string | null;
+  call: CallVM | null;
 }
 
 let state: State = {
@@ -46,6 +55,7 @@ let state: State = {
   modal: null,
   invite: "",
   toast: null,
+  call: null,
 };
 
 const listeners = new Set<() => void>();
@@ -66,6 +76,7 @@ export function useStore(): State {
 }
 
 export const client = new MolvaClient();
+const audio = new CallAudio(client);
 
 function toVM(m: Message): MessageVM {
   return {
@@ -290,7 +301,52 @@ function handleEvent(ev: CoreEvent): void {
       showToast(`ФАЙЛ ПРИНЯТ: ${ev.kind.fileDone.path}`);
       break;
     }
+    case "callEvent": {
+      const e = ev.kind.callEvent;
+      const call: CallVM = {
+        callId: e.callId,
+        peerHex: bytesToHex(e.peer),
+        state: e.state,
+        reconnecting: e.reconnecting,
+      };
+      if (e.state === CallEvent_State.STATE_ENDED) {
+        audio.stop();
+        setState({ call: null });
+        break;
+      }
+      if (e.state === CallEvent_State.STATE_ACTIVE && state.call?.state !== CallEvent_State.STATE_ACTIVE) {
+        void audio.start().catch(() => showToast("МИКРОФОН НЕДОСТУПЕН"));
+      }
+      setState({ call });
+      break;
+    }
   }
+}
+
+// Действия звонка.
+export async function startCall(): Promise<void> {
+  const chat = state.chats.find((c) => c.peerHex === state.selected);
+  if (!chat) return;
+  const res = await client.command({ $case: "callStart", callStart: { peer: chat.peer } });
+  if (res.error) showToast(res.error);
+}
+
+export async function acceptCall(): Promise<void> {
+  if (!state.call) return;
+  const res = await client.command({ $case: "callAccept", callAccept: { callId: state.call.callId } });
+  if (res.error) showToast(res.error);
+}
+
+export async function rejectCall(): Promise<void> {
+  if (!state.call) return;
+  const res = await client.command({ $case: "callReject", callReject: { callId: state.call.callId } });
+  if (res.error) showToast(res.error);
+}
+
+export async function hangupCall(): Promise<void> {
+  if (!state.call) return;
+  const res = await client.command({ $case: "callHangup", callHangup: { callId: state.call.callId } });
+  if (res.error) showToast(res.error);
 }
 
 // offerFile предлагает файл текущему собеседнику.

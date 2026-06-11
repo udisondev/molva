@@ -37,7 +37,27 @@ message Command {
     ListMessages list_messages = 11;
     MyInvite my_invite = 12;
     OfferFile offer_file = 13;
+    CallStart call_start = 14;
+    CallAccept call_accept = 15;
+    CallReject call_reject = 16;
+    CallHangup call_hangup = 17;
   }
+}
+
+message CallStart {
+  bytes peer = 1;
+}
+
+message CallAccept {
+  bytes call_id = 1;
+}
+
+message CallReject {
+  bytes call_id = 1;
+}
+
+message CallHangup {
+  bytes call_id = 1;
 }
 
 // Предложить контакту файл по локальному пути (путь даёт диалог оболочки).
@@ -109,6 +129,23 @@ message Event {
     FileOffered file_offered = 7;
     FileProgress file_progress = 8;
     FileDone file_done = 9;
+    CallEvent call_event = 10;
+  }
+}
+
+// Событие звонка: входящий/смена состояния/переустановка пути.
+message CallEvent {
+  bytes call_id = 1;
+  bytes peer = 2;
+  State state = 3;
+  bool reconnecting = 4;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_RINGING_OUT = 1;
+    STATE_RINGING_IN = 2;
+    STATE_ACTIVE = 3;
+    STATE_ENDED = 4;
   }
 }
 
