@@ -62,10 +62,17 @@ func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace ti
 	id := identity.FromSeed(seed)
 	log.Info("личность", "node", id.ID().String())
 
+	if bootstrap == "" {
+		// Точки входа сети из файла данных; флаг -bootstrap перекрывает.
+		if b, err := os.ReadFile(filepath.Join(dataDir, "bootstrap.txt")); err == nil {
+			bootstrap = strings.ReplaceAll(strings.TrimSpace(string(b)), "\n", ",")
+		}
+	}
 	contacts, err := parseBootstrap(bootstrap)
 	if err != nil {
 		return err
 	}
+	log.Info("бутстрап", "точек", len(contacts))
 
 	tr, err := quictr.Listen(id, listen)
 	if err != nil {

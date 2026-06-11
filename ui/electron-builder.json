@@ -1,0 +1,10 @@
+{
+  "appId": "dev.udison.molva",
+  "productName": "molva",
+  "directories": { "output": "release" },
+  "files": ["dist/**", "dist-electron/**", "package.json"],
+  "extraResources": [{ "from": "build-daemon/", "to": "." }],
+  "linux": { "target": ["AppImage", "deb"], "category": "Network" },
+  "win": { "target": ["nsis"] },
+  "mac": { "target": ["dmg"], "category": "public.app-category.social-networking" }
+}

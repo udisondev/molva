@@ -509,17 +509,24 @@ func (m *Manager) onGroupMessage(tx *store.Tx, from peer.ID, env *envelope.Envel
 	if err != nil {
 		return err
 	}
-	if !ok || rec.Left {
+	if !ok {
+		// Welcome ещё в пути: откат без ack — ретрай дотащит после него.
+		m.ctr.keyMisses.Add(1)
+		return errors.New("group: группа ещё неизвестна")
+	}
+	if rec.Left {
 		m.ctr.refused.Add(1)
-		return nil // не наша группа: съесть
+		return nil // нас удалили: молча есть
 	}
 	isMember, err := tx.GroupIsMember(msg.GroupID, from)
 	if err != nil {
 		return err
 	}
 	if !isMember {
-		m.ctr.refused.Add(1)
-		return nil
+		// Либо самозванец, либо членство новее нашего ещё едет — ретрай
+		// рассудит (самозванцу гейт всё равно не даст ack-флуда).
+		m.ctr.keyMisses.Add(1)
+		return errors.New("group: отправитель не в известном нам составе")
 	}
 	raw, ok, err := tx.SenderKeyGet(msg.GroupID, from)
 	if err != nil {
@@ -638,8 +645,9 @@ func (m *Manager) onUpdate(tx *store.Tx, from peer.ID, plain []byte) error {
 		return err
 	}
 	if !ok {
-		m.ctr.refused.Add(1)
-		return nil // welcome ещё не дошёл: ретраев нет — админ повторит при следующем изменении
+		// Welcome ещё в пути: откат без ack — ретрай переиграет позже.
+		m.ctr.keyMisses.Add(1)
+		return errors.New("group: группа ещё неизвестна")
 	}
 	if next.Version <= rec.Version {
 		return nil // повтор
@@ -681,6 +689,12 @@ func (m *Manager) applyMembership(tx *store.Tx, rec store.GroupRec, next Members
 			removed = append(removed, p)
 		}
 	}
+	var added []peer.ID
+	for _, p := range next.Members {
+		if !old.Has(p) && p != m.self {
+			added = append(added, p)
+		}
+	}
 	for _, p := range removed {
 		if err := tx.SenderKeyDelete(next.GroupID, p); err != nil {
 			return err
@@ -692,6 +706,36 @@ func (m *Manager) applyMembership(tx *store.Tx, rec store.GroupRec, next Members
 			return err
 		}
 		tx.AfterCommit(m.wake)
+	}
+	if len(added) > 0 && !rec.Left && len(removed) == 0 {
+		// Новичкам наш ключ мог не достаться через welcome (админ мог ещё
+		// не иметь его на руках) — раздаём текущую точку сами.
+		if err := m.distributeSelfKey(tx, next.GroupID, added, nowMs); err != nil {
+			return err
+		}
+		tx.AfterCommit(m.wake)
+	}
+	return nil
+}
+
+// distributeSelfKey раскладывает текущую точку своего ключа адресатам.
+func (m *Manager) distributeSelfKey(tx *store.Tx, gid [32]byte, to []peer.ID, nowMs int64) error {
+	raw, ok, err := tx.SenderKeyGet(gid, m.self)
+	if err != nil || !ok {
+		return err
+	}
+	sender, err := senderkey.UnmarshalSender(raw)
+	if err != nil {
+		return err
+	}
+	dist, err := EncodeKeyDist(gid, sender.Dist())
+	if err != nil {
+		return err
+	}
+	for _, p := range to {
+		if err := tx.SealedOutboxAdd(p, uint8(envelope.TypeGroupKey), dist, nowMs); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -706,16 +750,17 @@ func (m *Manager) onKey(tx *store.Tx, from peer.ID, plain []byte) error {
 	if _, ok, err := tx.GroupGet(gid); err != nil {
 		return err
 	} else if !ok {
-		m.ctr.refused.Add(1)
-		return nil
+		m.ctr.keyMisses.Add(1)
+		return errors.New("group: группа ещё неизвестна")
 	}
 	isMember, err := tx.GroupIsMember(gid, from)
 	if err != nil {
 		return err
 	}
 	if !isMember {
-		m.ctr.refused.Add(1)
-		return nil
+		// Раздача могла обогнать новую версию членства — ретрай дотащит.
+		m.ctr.keyMisses.Add(1)
+		return errors.New("group: раздающий не в известном нам составе")
 	}
 	// Старое поколение не понижает текущее (replay раздачи).
 	if raw, ok, err := tx.SenderKeyGet(gid, from); err != nil {
