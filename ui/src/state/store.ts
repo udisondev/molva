@@ -404,7 +404,15 @@ export function startClient(): void {
   client.onEvent = handleEvent;
   client.onStatus = (connected) => {
     setState({ connected });
-    if (connected) void refreshChats();
+    if (connected) {
+      void refreshChats();
+    } else {
+      // Разрыв IPC рвёт и медиапуть звонка: чистим UI звонка, чтобы не завис
+      // фантомный CallBar при пропущенном завершении. Живой в ядре звонок
+      // пере-эмитится сервером при переподключении.
+      audio.stop();
+      setState({ call: null });
+    }
   };
   client.start();
 }

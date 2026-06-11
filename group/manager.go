@@ -559,7 +559,7 @@ func (m *Manager) onGroupMessage(tx *store.Tx, from peer.ID, env *envelope.Envel
 	}
 	rowMsg := store.Message{
 		Peer: peer.ID(msg.GroupID), MsgID: env.MsgID, Outgoing: false,
-		FromSeq: env.FromSeq, Lamport: env.LamportTS, SentAt: time.Now().UnixMilli(),
+		FromSeq: env.FromSeq, Lamport: store.ClampLamport(env.LamportTS), SentAt: time.Now().UnixMilli(),
 		Status: store.StatusDelivered, Body: plain, Sender: from[:],
 	}
 	if _, err := tx.InsertMessage(&rowMsg); err != nil {
@@ -613,7 +613,13 @@ func (m *Manager) onWelcome(tx *store.Tx, from peer.ID, plain []byte) error {
 		return err
 	}
 	for _, k := range w.Keys {
-		if k.Member == m.self || !w.Membership.Has(k.Member) {
+		// Доверяем только ключу самого приславшего welcome: его DR-сессия
+		// аутентифицирует отправителя. Ключи прочих участников из welcome —
+		// второй руки: приславший мог подставить чужой ключ подписи и
+		// подделывать сообщения «от их имени». Настоящие ключи приедут
+		// напрямую от владельцев (onKey, где from аутентичен) — каждый
+		// участник рассылает свой ключ добавленным при обновлении состава.
+		if k.Member != from || !w.Membership.Has(k.Member) {
 			continue
 		}
 		r := senderkey.NewReceiver(k.Key)

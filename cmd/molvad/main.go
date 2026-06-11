@@ -153,6 +153,7 @@ func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace ti
 	errc := make(chan error, 2)
 	go func() { errc <- core.Run(ctx) }()
 	go func() { errc <- srv.Run(ctx) }()
+	go logStats(ctx, log, core, srv)
 
 	select {
 	case <-srv.Idle():
@@ -168,6 +169,29 @@ func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace ti
 		<-errc
 	}
 	return nil
+}
+
+// logStats периодически выгружает счётчики подсистем в лог: каждый дроп и
+// отказ виден, иначе наблюдаемость (методы Stats) ни во что не выводилась.
+func logStats(ctx context.Context, log *slog.Logger, core *app.Core, srv *ipc.Server) {
+	t := time.NewTicker(5 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			log.Info("счётчики",
+				"outbox", core.Outbox().Stats(),
+				"chat", core.Chats().Stats(),
+				"group", core.Groups().Stats(),
+				"blob", core.Files().Stats(),
+				"call", core.Calls().Stats(),
+				"media", core.Media().Stats(),
+				"ipc", srv.Stats(),
+			)
+		}
+	}
 }
 
 // loadOrCreateSeed читает master-seed или гриндит новый под PoW сети.

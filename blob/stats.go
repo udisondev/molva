@@ -19,6 +19,7 @@ type Stats struct {
 	PullsDropped  uint64 // переполнение очереди новых приёмов
 	ManifestsRecv uint64 // принятые манифесты
 	FilesDone     uint64 // завершённые приёмы
+	FilesDeleted  uint64 // локально удалённые файлы
 }
 
 type counters struct {
@@ -37,6 +38,7 @@ type counters struct {
 	pullsDropped  atomic.Uint64
 	manifestsRecv atomic.Uint64
 	filesDone     atomic.Uint64
+	filesDeleted  atomic.Uint64
 }
 
 // Stats — снапшот счётчиков.
@@ -57,5 +59,6 @@ func (m *Manager) Stats() Stats {
 		PullsDropped:  m.ctr.pullsDropped.Load(),
 		ManifestsRecv: m.ctr.manifestsRecv.Load(),
 		FilesDone:     m.ctr.filesDone.Load(),
+		FilesDeleted:  m.ctr.filesDeleted.Load(),
 	}
 }

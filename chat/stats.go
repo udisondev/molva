@@ -14,6 +14,7 @@ type Stats struct {
 	NoSession           uint64 // CHAT без сессии (съеден, идёт re-handshake)
 	DecryptFailures     uint64 // рассинхрон состояний (съеден, re-handshake)
 	PendingDrained      uint64 // тексты, дождавшиеся сессии
+	SeqGaps             uint64 // дыры в per-sender from_seq (пропуски потока)
 }
 
 type counters struct {
@@ -26,6 +27,7 @@ type counters struct {
 	noSession           atomic.Uint64
 	decryptFailures     atomic.Uint64
 	pendingDrained      atomic.Uint64
+	seqGaps             atomic.Uint64
 }
 
 // Stats — снапшот счётчиков.
@@ -40,5 +42,6 @@ func (m *Manager) Stats() Stats {
 		NoSession:           m.ctr.noSession.Load(),
 		DecryptFailures:     m.ctr.decryptFailures.Load(),
 		PendingDrained:      m.ctr.pendingDrained.Load(),
+		SeqGaps:             m.ctr.seqGaps.Load(),
 	}
 }

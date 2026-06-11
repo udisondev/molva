@@ -218,6 +218,9 @@ func (m *Manager) Block(ctx context.Context, p peer.ID) error {
 		if err := tx.OutboxPurgePeer(p); err != nil {
 			return err
 		}
+		if err := tx.SealedOutboxPurgePeer(p); err != nil {
+			return err
+		}
 		if _, err := tx.PendingChatTake(p); err != nil {
 			return err
 		}

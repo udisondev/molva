@@ -129,7 +129,15 @@ func (m *Manager) Run(ctx context.Context) error {
 			// Ошибка store: холодный повтор вместо busy-spin'а на 100% CPU.
 			timer.Reset(retryBase)
 			wake = timer.C
-		} else if at, ok, err := m.db.OutboxNearest(ctx); err == nil && ok {
+		} else if at, ok, err := m.db.OutboxNearest(ctx); err != nil {
+			// Ошибка чтения ближайшего срока: без таймера ретраи встали бы
+			// до следующего presence-кика. Холодный повтор и счётчик.
+			if ctx.Err() == nil {
+				m.ctr.storeFailures.Add(1)
+			}
+			timer.Reset(retryBase)
+			wake = timer.C
+		} else if ok {
 			timer.Reset(max(time.Until(time.UnixMilli(at)), 0))
 			wake = timer.C
 		}
@@ -153,9 +161,10 @@ func (m *Manager) Run(ctx context.Context) error {
 
 // attemptResult — итог обращения с одним готовым элементом за проход.
 type attemptResult struct {
-	item store.OutboxItem
-	sent bool // кадр ушёл в сеть
-	took bool // попытка была (skipped-элементы не считают attempts)
+	item    store.OutboxItem
+	sent    bool // кадр ушёл в сеть
+	took    bool // попытка была (skipped-элементы не считают attempts)
+	backoff bool // пир в проходе уже признан мёртвым — отодвинуть и скип
 }
 
 // flushDue — один проход по готовым элементам: группировка по пирам,
@@ -218,7 +227,10 @@ func (m *Manager) flushDue(ctx context.Context) bool {
 					r := attemptResult{item: it}
 					if failed {
 						// Пир не отвечает — не жечь таймаут на каждом
-						// элементе, остаток пачки только сдвигается.
+						// элементе; остаток пачки отодвигаем тем же backoff'ом,
+						// иначе скипнутые с малым attempts остаются «готовы» и
+						// долбят офлайн-пира каждые 5 с.
+						r.backoff = true
 						mu.Lock()
 						results = append(results, r)
 						mu.Unlock()
@@ -248,7 +260,7 @@ func (m *Manager) flushDue(ctx context.Context) bool {
 		err = m.db.Tx(ctx, func(tx *store.Tx) error {
 			for _, r := range results {
 				attempts := r.item.Attempts
-				if r.took {
+				if r.took || r.backoff {
 					attempts++
 				}
 				nextAt := now + backoff(max(attempts, 1)).Milliseconds()

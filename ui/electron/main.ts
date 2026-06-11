@@ -61,7 +61,11 @@ function runCmd(args: string[], stdin?: string): Promise<Record<string, string>>
 // диске) и резолвит адрес IPC из его stdout.
 function startDaemon(): Promise<string> {
   if (ipcAddr) return ipcAddr;
-  const child = spawn(daemonPath(), ["-data", dataDir, "-grace", "0"], {
+  // grace > 0: если оболочка падает аварийно (без before-quit, SIGTERM не
+  // уходит), узел сам выключится, не найдя UI дольше grace — иначе остался
+  // бы осиротевший демон, держащий seed и БД. Перезагрузка окна укладывается
+  // в grace (renderer переподключается за ~1.5 с).
+  const child = spawn(daemonPath(), ["-data", dataDir, "-grace", "10s"], {
     env: { ...process.env, MOLVA_IPC_TOKEN: token, MOLVA_IPC_PORT: "0" },
     stdio: ["ignore", "pipe", "inherit"],
   });

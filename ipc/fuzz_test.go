@@ -37,3 +37,31 @@ func FuzzDecodeFrame(f *testing.F) {
 		}
 	})
 }
+
+// FuzzDecodeMediaFrame: медиакадры от renderer'а — недоверенный ввод;
+// произвольные байты не паникуют, успех переживает round-trip.
+func FuzzDecodeMediaFrame(f *testing.F) {
+	f.Add([]byte{})
+	f.Add([]byte{TagMedia, 16})
+	valid, _ := EncodeMediaFrame(nil, 16, 1234, []byte("opus"))
+	f.Add(valid)
+	f.Add(append([]byte{TagMedia, 17, 0, 0, 0, 0, 0, 0, 0, 0}, make([]byte, 100)...))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		ch, rx, payload, err := DecodeMediaFrame(data)
+		if err != nil {
+			return
+		}
+		b, err := EncodeMediaFrame(nil, ch, rx, payload)
+		if err != nil {
+			t.Fatalf("re-encode: %v", err)
+		}
+		ch2, rx2, payload2, err := DecodeMediaFrame(b)
+		if err != nil {
+			t.Fatalf("re-decode: %v", err)
+		}
+		if ch2 != ch || rx2 != rx || string(payload2) != string(payload) {
+			t.Fatal("round-trip разошёлся")
+		}
+	})
+}

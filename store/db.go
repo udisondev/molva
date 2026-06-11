@@ -91,13 +91,21 @@ func (d *DB) Tx(ctx context.Context, fn func(tx *Tx) error) error {
 		return fmt.Errorf("store: begin: %w", err)
 	}
 	t := &Tx{ctx: ctx, tx: sqlTx, box: d.box}
+	committed := false
+	// Откат гарантируется даже при панике в fn: иначе открытая транзакция
+	// навсегда удержит единственное соединение sqlite и заклинит базу.
+	defer func() {
+		if !committed {
+			_ = sqlTx.Rollback()
+		}
+	}()
 	if err := fn(t); err != nil {
-		_ = sqlTx.Rollback()
 		return err
 	}
 	if err := sqlTx.Commit(); err != nil {
 		return fmt.Errorf("store: commit: %w", err)
 	}
+	committed = true
 	for _, fn := range t.after {
 		fn()
 	}

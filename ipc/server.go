@@ -27,14 +27,20 @@ const (
 	// eventQueue — глубина очереди событий клиенту; переполнение — дроп
 	// со счётчиком (UI пересинхронизируется запросами).
 	eventQueue = 1024
+	// cmdQueue — очередь входящих команд клиента: команды исполняются на
+	// своей горутине, чтобы тяжёлая (хэш большого файла в OfferFile) не
+	// блокировала readLoop и через него — медиапуть звонка.
+	cmdQueue = 64
 	// listLimit — потолок выдачи истории за один запрос.
 	listLimit = 500
 )
 
-// client — одно подключение UI: соединение и его очередь исходящих кадров.
+// client — одно подключение UI: соединение и его очереди исходящих кадров
+// и входящих команд.
 type client struct {
 	conn *websocket.Conn
 	send chan []byte
+	cmds chan *ipcpb.Command
 	stop chan struct{}
 	once sync.Once
 }
@@ -188,12 +194,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cl := &client{
 		conn: conn,
 		send: make(chan []byte, eventQueue),
+		cmds: make(chan *ipcpb.Command, cmdQueue),
 		stop: make(chan struct{}),
 	}
 	s.attach(cl)
 	defer s.detach(cl)
 
 	go s.writeLoop(r.Context(), cl)
+	go s.commandLoop(r.Context(), cl)
 	s.readLoop(r.Context(), cl)
 }
 
@@ -222,6 +230,17 @@ func (s *Server) attach(cl *client) {
 	if old != nil {
 		old.close()
 		_ = old.conn.Close(websocket.StatusPolicyViolation, "replaced")
+	}
+	// Ресинк звонка: звонок живёт в ядре независимо от IPC, и пере-
+	// подключившийся renderer (перезагрузка окна, обрыв WS) иначе не узнал бы
+	// о текущем звонке — либо завис бы с «фантомным» CallBar при пропущенном
+	// завершении. Renderer чистит звонок на разрыве и доверяет этому событию.
+	if s.calls != nil {
+		if c, ok := s.calls.Current(); ok {
+			s.push(cl, &ipcpb.Event{Kind: &ipcpb.Event_CallEvent{CallEvent: &ipcpb.CallEvent{
+				CallId: c.ID[:], Peer: c.Peer[:], State: ipcpb.CallEvent_State(c.State),
+			}}})
+		}
 	}
 }
 
@@ -283,8 +302,32 @@ func (s *Server) readLoop(ctx context.Context, cl *client) {
 			s.ctr.malformed.Add(1)
 			continue
 		}
-		res := s.handle(ctx, cmd)
-		s.push(cl, &ipcpb.Event{Kind: &ipcpb.Event_CommandResult{CommandResult: res}})
+		// Команды — на отдельную горутину: readLoop остаётся свободен для
+		// медиакадров. Переполнение очереди (поток команд при зависшей
+		// тяжёлой команде) не блокирует чтение — отвечаем ошибкой.
+		select {
+		case cl.cmds <- cmd:
+		default:
+			s.push(cl, &ipcpb.Event{Kind: &ipcpb.Event_CommandResult{
+				CommandResult: &ipcpb.CommandResult{Id: cmd.Id, Error: "ядро занято, повторите"},
+			}})
+		}
+	}
+}
+
+// commandLoop исполняет команды клиента последовательно (порядок команд
+// сохранён), отдельно от чтения сокета.
+func (s *Server) commandLoop(ctx context.Context, cl *client) {
+	for {
+		select {
+		case <-cl.stop:
+			return
+		case <-ctx.Done():
+			return
+		case cmd := <-cl.cmds:
+			res := s.handle(ctx, cmd)
+			s.push(cl, &ipcpb.Event{Kind: &ipcpb.Event_CommandResult{CommandResult: res}})
+		}
 	}
 }
 
@@ -406,11 +449,16 @@ func (s *Server) OnPreset(level uint8) {
 	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_MediaPreset{MediaPreset: &ipcpb.MediaPreset{Level: uint32(level)}}})
 }
 
-// OnCallReconnecting — переустановка медиапути.
+// OnCallReconnecting — переустановка медиапути. Peer берём из текущего
+// звонка: без него renderer затёр бы собеседника пустым значением.
 func (s *Server) OnCallReconnecting(callID [16]byte) {
-	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_CallEvent{CallEvent: &ipcpb.CallEvent{
-		CallId: callID[:], Reconnecting: true, State: ipcpb.CallEvent_STATE_ACTIVE,
-	}}})
+	ev := &ipcpb.CallEvent{CallId: callID[:], Reconnecting: true, State: ipcpb.CallEvent_STATE_ACTIVE}
+	if s.calls != nil {
+		if c, ok := s.calls.Current(); ok && c.ID == callID {
+			ev.Peer = c.Peer[:]
+		}
+	}
+	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_CallEvent{CallEvent: ev}})
 }
 
 func (s *Server) pushCallEvent(c callsig.Call, reconnecting bool) {

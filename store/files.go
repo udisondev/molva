@@ -62,6 +62,15 @@ func (t *Tx) FilePath(fileID [16]byte, path string, nowMs int64) error {
 	return nil
 }
 
+// FileDelete стирает запись передачи (локальное удаление файла). Сам blob
+// с диска убирает вызывающий — store знает только запись.
+func (t *Tx) FileDelete(fileID [16]byte) error {
+	if _, err := t.tx.ExecContext(t.ctx, `DELETE FROM files WHERE file_id = ?`, fileID[:]); err != nil {
+		return fmt.Errorf("store: file delete: %w", err)
+	}
+	return nil
+}
+
 // FileGet — запись передачи по идентификатору.
 func (d *DB) FileGet(ctx context.Context, fileID [16]byte) (FileRec, bool, error) {
 	row := d.sql.QueryRowContext(ctx,

@@ -60,9 +60,10 @@ type Manager struct {
 	sendReq   SendFunc
 	online    func(peer.ID) bool
 
-	inChunks chan inFrame
-	inReqs   chan inFrame
-	newPulls chan store.FileRec
+	inChunks  chan inFrame
+	inReqs    chan inFrame
+	newPulls  chan store.FileRec
+	dropPulls chan [16]byte
 
 	pulls map[[16]byte]*pull // трогает только горутина приёма
 
@@ -90,6 +91,7 @@ func NewManager(db *store.DB, chats *chat.Manager, dir string, sendChunk, sendRe
 		inChunks:  make(chan inFrame, 256),
 		inReqs:    make(chan inFrame, 64),
 		newPulls:  make(chan store.FileRec, 16),
+		dropPulls: make(chan [16]byte, 16),
 		pulls:     make(map[[16]byte]*pull),
 	}
 	chats.RegisterSealed(envelope.TypeFileManifest, m.onManifest)
@@ -206,6 +208,31 @@ func (m *Manager) onManifest(tx *store.Tx, from peer.ID, plain []byte) error {
 	return tx.FilePut(&rec)
 }
 
+// DeleteFile — локальное удаление файла: стирается запись передачи и сам
+// blob с диска (по ADR удаление работает для любых сообщений, включая
+// файлы). Активный приём снимается на горутине приёма — карта pulls
+// принадлежит ей.
+func (m *Manager) DeleteFile(ctx context.Context, fileID [16]byte) error {
+	rec, ok, err := m.db.FileGet(ctx, fileID)
+	if err != nil {
+		return err
+	}
+	select {
+	case m.dropPulls <- fileID:
+	default: // приём снимется лениво либо его уже нет
+	}
+	if err := m.db.Tx(ctx, func(tx *store.Tx) error { return tx.FileDelete(fileID) }); err != nil {
+		return err
+	}
+	if ok {
+		_ = os.Remove(rec.Path)
+	}
+	// Незавершённый приём лежит как <file_id>.part — снимаем и его.
+	_ = os.Remove(filepath.Join(m.dir, fmt.Sprintf("%x.part", fileID)))
+	m.ctr.filesDeleted.Add(1)
+	return nil
+}
+
 // Run крутит приём, отдачу и тики до отмены ctx.
 func (m *Manager) Run(ctx context.Context) error {
 	// Резюм незавершённых приёмов после рестарта.
@@ -229,6 +256,11 @@ func (m *Manager) Run(ctx context.Context) error {
 			return ctx.Err()
 		case rec := <-m.newPulls:
 			m.startPull(ctx, rec)
+		case id := <-m.dropPulls:
+			if p, ok := m.pulls[id]; ok {
+				_ = p.f.Close()
+				delete(m.pulls, id)
+			}
 		case f := <-m.inChunks:
 			m.acceptChunk(ctx, f)
 		case <-ticker.C:

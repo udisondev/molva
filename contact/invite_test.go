@@ -68,6 +68,37 @@ func TestInviteSelfErrors(t *testing.T) {
 	}
 }
 
+func TestClampAliasStripsInvisible(t *testing.T) {
+	// Невидимые символы задаём кодами рун: их литералы в исходнике Go
+	// недопустимы (U+FEFF) и сами по себе — повод вырезать их из алиаса.
+	pre := func(r rune, s string) string { return string(r) + s }
+	cases := []struct {
+		in, want string
+	}{
+		{pre(0x202E, "Алиса"), "Алиса"},       // RTL-override
+		{pre(0x200B, "ab"), "ab"},             // zero-width space
+		{pre(0x200D, "ab"), "ab"},             // zero-width joiner
+		{pre(0xFEFF, "имя"), "имя"},           // BOM/ZWNBSP
+		{pre(0x2066, "изолят"), "изолят"},     // bidi-изолят
+		{pre(0x200E, "текст"), "текст"},       // LRM
+		{pre(0x200F, "текст"), "текст"},       // RLM
+		{pre(0x202A, "встройка"), "встройка"}, // embedding
+		{pre(0x2060, "слово"), "слово"},       // word joiner
+	}
+	for _, c := range cases {
+		if got := clampAlias(c.in); got != c.want {
+			t.Fatalf("clampAlias(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestInviteRejectsOverlongCode(t *testing.T) {
+	long := "molva://add/" + strings.Repeat("z", maxInviteCodeLen+1)
+	if _, _, err := ParseInvite(long); !errors.Is(err, ErrBadInviteLen) {
+		t.Fatalf("слишком длинный код: want ErrBadInviteLen, got %v", err)
+	}
+}
+
 // FuzzParseInvite: произвольный ввод не паникует; успех — round-trip.
 func FuzzParseInvite(f *testing.F) {
 	f.Add("")

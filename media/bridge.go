@@ -16,6 +16,11 @@ import (
 // ErrNoSession — медиасессии сейчас нет (звонок не активен или путь умер).
 var ErrNoSession = errors.New("media: нет активной медиасессии")
 
+// ErrBadFrame — кадр с недопустимым каналом или размером: nodenet паникует
+// на зарезервированном канале (<16) и на датаграмме больше потолка —
+// недоверенный кадр от renderer'а не должен ронять ядро.
+var ErrBadFrame = errors.New("media: недопустимый канал или размер кадра")
+
 // FrameFunc получает входящий медиакадр. payload алиасит пул транспорта и
 // валиден только до возврата — получатель копирует синхронно.
 type FrameFunc func(ch uint8, rx time.Time, payload []byte)
@@ -65,6 +70,9 @@ func (b *Bridge) Attach(s transport.MediaSession) {
 	b.gen++
 	gen := b.gen
 	b.mu.Unlock()
+	if b.adapter != nil {
+		b.adapter.ResetSession()
+	}
 	if old != nil {
 		_ = old.Close()
 	}
@@ -93,6 +101,13 @@ func (b *Bridge) Active() bool {
 // Send отправляет медиакадр: аудио/фидбек — датаграммой без аллокаций и
 // блокировки; видео — надёжными сообщениями с дроблением.
 func (b *Bridge) Send(ch uint8, payload []byte) error {
+	// Канал и размер — недоверенный ввод из IPC: nodenet паникует на
+	// зарезервированном канале и на oversize-датаграмме, поэтому отсекаем
+	// до вызова, дроп — в счётчик.
+	if ch < transport.FirstAppChannel {
+		b.ctr.txBadFrame.Add(1)
+		return ErrBadFrame
+	}
 	b.mu.Lock()
 	s := b.session
 	b.mu.Unlock()
@@ -102,6 +117,10 @@ func (b *Bridge) Send(ch uint8, payload []byte) error {
 	}
 	if ch == ChVideo {
 		return b.sendVideo(s, payload)
+	}
+	if len(payload) > transport.MaxMediaDatagram {
+		b.ctr.txBadFrame.Add(1)
+		return ErrBadFrame
 	}
 	p := transport.GetMedia()
 	n := copy(p.Buf()[:cap(p.Buf())], payload)

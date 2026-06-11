@@ -72,6 +72,18 @@ func (a *Adapter) Level() Preset {
 	return a.level
 }
 
+// ResetSession сбрасывает привязку к прошлой медиасессии: новый путь
+// (make-before-break) считает дропы tx-ring с нуля, поэтому базовый
+// уровень дропов надо обнулить — иначе рост дропов новой сессии не виден,
+// пока не превысит итог старой, и сигнал деградации подавлен. Текущая
+// ступень сохраняется, чтобы переустановка пути не дёргала качество.
+func (a *Adapter) ResetSession() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastDrop = 0
+	a.stableAt = time.Now()
+}
+
 // ObserveTxDrops — локальный сигнал перегруза: рост дропов tx-ring
 // (он срабатывает на RTT раньше сетевой потери).
 func (a *Adapter) ObserveTxDrops(total uint64) {

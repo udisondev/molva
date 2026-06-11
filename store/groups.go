@@ -165,6 +165,15 @@ func (t *Tx) SealedOutboxDelete(id int64) error {
 	return nil
 }
 
+// SealedOutboxPurgePeer очищает отложенные рассылки в сторону пира
+// (блокировка): иначе групповые ключи/документы ретраятся к нему вечно.
+func (t *Tx) SealedOutboxPurgePeer(p peer.ID) error {
+	if _, err := t.tx.ExecContext(t.ctx, `DELETE FROM sealed_outbox WHERE peer = ?`, p[:]); err != nil {
+		return fmt.Errorf("store: sealed outbox purge: %w", err)
+	}
+	return nil
+}
+
 // GroupList — все группы.
 func (d *DB) GroupList(ctx context.Context) ([]GroupRec, error) {
 	rows, err := d.sql.QueryContext(ctx,

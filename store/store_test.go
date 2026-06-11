@@ -198,6 +198,105 @@ func TestCounters(t *testing.T) {
 	}
 }
 
+func TestSealedOutboxPurgePeer(t *testing.T) {
+	d, _ := openTemp(t, KeyFromSeed([32]byte{11}))
+	ctx := context.Background()
+	blocked := peer.ID{0xBB}
+	other := peer.ID{0xCC}
+
+	now := int64(1000)
+	if err := d.Tx(ctx, func(tx *Tx) error {
+		if err := tx.SealedOutboxAdd(blocked, 1, []byte("к заблокированному"), now); err != nil {
+			return err
+		}
+		return tx.SealedOutboxAdd(other, 1, []byte("к другому"), now)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := d.Tx(ctx, func(tx *Tx) error { return tx.SealedOutboxPurgePeer(blocked) }); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := d.SealedOutboxList(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || peer.ID(items[0].Peer) != other {
+		t.Fatalf("после очистки осталось %d рассылок, ждали одну к other", len(items))
+	}
+}
+
+func TestClampLamport(t *testing.T) {
+	if got := ClampLamport(5); got != 5 {
+		t.Fatalf("малая метка клампится зря: %d", got)
+	}
+	if got := ClampLamport(1 << 62); got != 1<<53 {
+		t.Fatalf("враждебная метка не зажата: %d, want %d", got, uint64(1)<<53)
+	}
+}
+
+func TestRecvSeqObserveGap(t *testing.T) {
+	d, _ := openTemp(t, KeyFromSeed([32]byte{9}))
+	ctx := context.Background()
+	err := d.Tx(ctx, func(tx *Tx) error {
+		steps := []struct {
+			seq     uint64
+			wantGap bool
+		}{
+			{1, false}, // первое
+			{2, false}, // подряд
+			{5, true},  // дыра 3,4
+			{3, false}, // переупорядоченное — не дыра
+			{6, false}, // подряд после максимума
+		}
+		for _, s := range steps {
+			gap, err := tx.RecvSeqObserve("rseq:test", s.seq)
+			if err != nil {
+				return err
+			}
+			if gap != s.wantGap {
+				t.Fatalf("seq %d: gap=%v, want %v", s.seq, gap, s.wantGap)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTxRollsBackOnPanic(t *testing.T) {
+	d, _ := openTemp(t, KeyFromSeed([32]byte{10}))
+	ctx := context.Background()
+
+	// Паника в fn не должна оставить открытую транзакцию (иначе единственное
+	// соединение sqlite заклинит и последующие запросы зависнут/упадут).
+	func() {
+		defer func() { _ = recover() }()
+		_ = d.Tx(ctx, func(tx *Tx) error {
+			_, _ = tx.NextSeq("seq:паника")
+			panic("сбой посреди транзакции")
+		})
+	}()
+
+	// База осталась рабочей: новая транзакция проходит, а изменения
+	// паниковавшей откатились (счётчик начинается с 1).
+	err := d.Tx(ctx, func(tx *Tx) error {
+		v, err := tx.NextSeq("seq:паника")
+		if err != nil {
+			return err
+		}
+		if v != 1 {
+			t.Fatalf("счётчик %d — откат паниковавшей транзакции не сработал, want 1", v)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("база заклинила после паники: %v", err)
+	}
+}
+
 func TestOutboxLifecycle(t *testing.T) {
 	d, _ := openTemp(t, KeyFromSeed([32]byte{7}))
 	ctx := context.Background()

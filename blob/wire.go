@@ -19,6 +19,11 @@ const (
 	// MaxFileSize — потолок файла v1 (битмапы и nonce-схема рассчитаны
 	// с запасом, потолок отсекает абсурдные манифесты).
 	MaxFileSize = 4 << 30
+	// maxChunks — потолок числа чанков: малый ChunkSize при большом Size
+	// раздул бы битмап (ChunkSize=1, Size=4ГиБ → миллиарды чанков, сотни
+	// МиБ аллокации) ещё до первого байта данных. Реальный максимум при
+	// штатных 60 КиБ — ~72k чанков; потолок с большим запасом.
+	maxChunks = 1 << 20
 	// maxNameLen — потолок имени файла в манифесте.
 	maxNameLen = 255
 )
@@ -91,6 +96,11 @@ func validateManifest(m *Manifest) error {
 	}
 	if m.ChunkSize == 0 || m.ChunkSize > ChunkSize {
 		return fmt.Errorf("%w: чанк %d", ErrMalformed, m.ChunkSize)
+	}
+	// Потолок числа чанков отсекает раздувание битмапа малым ChunkSize при
+	// большом Size (анти-DoS аллокации на приёме недоверенного манифеста).
+	if m.Chunks() > maxChunks {
+		return fmt.Errorf("%w: чанков %d", ErrMalformed, m.Chunks())
 	}
 	if m.Name == "" || len(m.Name) > maxNameLen {
 		return fmt.Errorf("%w: имя", ErrMalformed)

@@ -21,6 +21,10 @@ const (
 	inviteHost   = "add"
 	// MaxAliasLen — потолок алиаса в рунах (и предлагаемого, и локального).
 	MaxAliasLen = 64
+	// maxInviteCodeLen — потолок base58-тела инвайта. Полезная нагрузка —
+	// 36 байт (NodeID+CRC) ≈ 49 символов; запас отсекает гигантский ввод
+	// до квадратичной работы big.Int в декодере.
+	maxInviteCodeLen = 96
 )
 
 // Ошибки разбора инвайта (недоверенный ввод пользователя/QR).
@@ -62,6 +66,9 @@ func ParseInvite(s string) (peer.ID, string, error) {
 	if code == "" || strings.Contains(code, "/") {
 		return peer.ID{}, "", ErrBadInvite
 	}
+	if len(code) > maxInviteCodeLen {
+		return peer.ID{}, "", ErrBadInviteLen
+	}
 	payload, err := base58Decode(code)
 	if err != nil {
 		return peer.ID{}, "", err
@@ -88,7 +95,7 @@ func clampAlias(a string) string {
 	var b strings.Builder
 	n := 0
 	for _, r := range a {
-		if r < 0x20 || r == 0x7f {
+		if r < 0x20 || r == 0x7f || isInvisible(r) {
 			continue
 		}
 		b.WriteRune(r)
@@ -98,6 +105,26 @@ func clampAlias(a string) string {
 		}
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// isInvisible — bidi-управляющие и пробелы нулевой ширины: алиас приходит
+// из инвайта (внешний ввод) и рендерится в UI; такие символы позволяют
+// подделать отображаемое имя (RTL-override, склейка) — вырезаем.
+func isInvisible(r rune) bool {
+	switch {
+	case r == 0x200B || r == 0x200C || r == 0x200D: // zero-width space/non-joiner/joiner
+		return true
+	case r == 0x200E || r == 0x200F: // LRM/RLM
+		return true
+	case r >= 0x202A && r <= 0x202E: // embeddings и overrides
+		return true
+	case r == 0x2060 || r == 0xFEFF: // word joiner, BOM/ZWNBSP
+		return true
+	case r >= 0x2066 && r <= 0x2069: // bidi isolates
+		return true
+	default:
+		return false
+	}
 }
 
 // base58Encode — классический base58: ведущие нули как '1'.

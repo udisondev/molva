@@ -251,9 +251,16 @@ func (m *Manager) onChat(tx *store.Tx, from peer.ID, env *envelope.Envelope) err
 	if err := tx.LamportObserve(env.LamportTS); err != nil {
 		return err
 	}
+	// Детект дыр per-sender: пропуск более ранних сообщений виден в счётчике
+	// (надёжность даёт outbox, переотправку не запрашиваем).
+	if gap, err := tx.RecvSeqObserve("rseq:"+from.String(), env.FromSeq); err != nil {
+		return err
+	} else if gap {
+		m.ctr.seqGaps.Add(1)
+	}
 	msg := store.Message{
 		Peer: from, MsgID: env.MsgID, Outgoing: false, FromSeq: env.FromSeq,
-		Lamport: env.LamportTS, SentAt: time.Now().UnixMilli(),
+		Lamport: store.ClampLamport(env.LamportTS), SentAt: time.Now().UnixMilli(),
 		Status: store.StatusDelivered, Body: plain,
 	}
 	if _, err := tx.InsertMessage(&msg); err != nil {
@@ -317,6 +324,12 @@ func (m *Manager) onSessionInit(tx *store.Tx, from peer.ID, env *envelope.Envelo
 		return err
 	}
 	m.ctr.sessionsAccepted.Add(1)
+	// Респондент не имеет отправной цепочки до первого принятого сообщения
+	// (канон DR). Тексты, ждущие отправки, сливаются сами, как только от
+	// пира приходит первое сообщение (drainPending в onChat/RegisterSealed):
+	// при коллизии победитель пишет первым, и его сообщение открывает нашу
+	// цепочку. Спекулятивная переинициация здесь гонилась бы с уже летящими
+	// конвертами и теряла бы их — поэтому не делаем.
 	tx.AfterCommit(func() { m.ob.Flush(from) })
 	return nil
 }

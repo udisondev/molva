@@ -105,30 +105,43 @@ func (m *Manager) Consent(remote peer.ID) bool {
 
 // Start начинает исходящий звонок контакту.
 func (m *Manager) Start(ctx context.Context, to peer.ID, codecs []string) ([16]byte, error) {
+	var callID [16]byte
+	if _, err := io.ReadFull(m.rnd, callID[:]); err != nil {
+		return [16]byte{}, err
+	}
+	call := &Call{ID: callID, Peer: to, State: StateRingingOut, Outgoing: true, Codecs: codecs}
+
+	// Резерв current атомарно с проверкой busy: иначе встречный offer между
+	// проверкой и установкой затёр бы наш звонок (или наоборот).
 	m.mu.Lock()
 	if m.current != nil && m.current.State != StateEnded {
 		m.mu.Unlock()
 		return [16]byte{}, ErrBusy
 	}
+	m.current = call
 	m.mu.Unlock()
 
-	var callID [16]byte
-	if _, err := io.ReadFull(m.rnd, callID[:]); err != nil {
-		return [16]byte{}, err
-	}
 	payload, err := proto.Marshal(&callpb.Offer{CallId: callID[:], Codecs: codecs})
 	if err != nil {
+		m.clearIf(call)
 		return [16]byte{}, err
 	}
 	if _, err := m.chats.SendSealed(ctx, to, envelope.TypeCallOffer, payload); err != nil {
+		m.clearIf(call)
 		return [16]byte{}, err
 	}
-	call := &Call{ID: callID, Peer: to, State: StateRingingOut, Outgoing: true, Codecs: codecs}
-	m.mu.Lock()
-	m.current = call
-	m.mu.Unlock()
 	m.emitState(*call)
 	return callID, nil
+}
+
+// clearIf снимает резерв звонка, если он всё ещё текущий (отправка offer'а
+// не удалась).
+func (m *Manager) clearIf(call *Call) {
+	m.mu.Lock()
+	if m.current == call {
+		m.current = nil
+	}
+	m.mu.Unlock()
 }
 
 // Accept принимает входящий звонок: consent открывается, звонящий

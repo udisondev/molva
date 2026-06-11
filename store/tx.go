@@ -94,12 +94,48 @@ func (t *Tx) NextSeq(scope string) (uint64, error) {
 // LamportNext — тик лампортовых часов для исходящего.
 func (t *Tx) LamportNext() (uint64, error) { return t.NextSeq("lamport") }
 
+// RecvSeqObserve регистрирует принятый per-sender from_seq в счётчике scope
+// и сообщает, образует ли он дыру относительно ранее виденного максимума
+// (incoming > max+1 — пропущены более ранние сообщения). Переупорядоченные
+// (incoming <= max) дырой не считаются: ретрай и дедуп — норма. Надёжность
+// даёт outbox; сигнал — для наблюдаемости целостности потока, не для
+// переотправки.
+func (t *Tx) RecvSeqObserve(scope string, seq uint64) (gap bool, err error) {
+	seq = ClampLamport(seq)
+	var cur uint64
+	switch err := t.tx.QueryRowContext(t.ctx,
+		`SELECT value FROM counters WHERE scope = ?`, scope).Scan(&cur); {
+	case errors.Is(err, sql.ErrNoRows):
+		cur = 0
+	case err != nil:
+		return false, fmt.Errorf("store: recv seq: %w", err)
+	}
+	if cur != 0 && seq > cur+1 {
+		gap = true
+	}
+	if seq > cur {
+		if _, err := t.tx.ExecContext(t.ctx,
+			`INSERT INTO counters (scope, value) VALUES (?, ?)
+			 ON CONFLICT (scope) DO UPDATE SET value = ?`, scope, seq, seq); err != nil {
+			return false, fmt.Errorf("store: recv seq: %w", err)
+		}
+	}
+	return gap, nil
+}
+
 // lamportCeil — потолок принимаемой лампортовой метки. Метка приходит из
 // недоверенного конверта: без потолка враждебный пир одной гигантской
 // меткой переполнил бы знаковый INTEGER счётчика (через MAX(...)+1 SQLite
 // уехал бы во float) и навсегда сломал отправку. 2^53 хватит на вечность
 // и безопасно далеко от обеих границ (int64 и точности float64).
 const lamportCeil = uint64(1) << 53
+
+// ClampLamport ограничивает недоверенную метку из конверта тем же
+// потолком, что и счётчик: метку пишут не только в часы, но и в строку
+// сообщения (поле порядка отображения) — без клампа враждебное значение
+// у 2^63 уехало бы в отрицательный int64 и закрепило бы сообщение на
+// краю истории.
+func ClampLamport(v uint64) uint64 { return min(v, lamportCeil) }
 
 // LamportObserve продвигает лампортовы часы по принятой метке:
 // value = max(value, min(remote, потолок)) + 1.
