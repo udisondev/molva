@@ -1,0 +1,176 @@
+syntax = "proto3";
+
+package molva.ipc.v1;
+
+option go_package = "github.com/udisondev/molva/proto/ipcpb";
+
+// IPC между molvad и Electron-UI: один WebSocket, бинарные кадры.
+// Каждый кадр — ровно один Frame. Первый кадр от UI — Hello с auth-токеном.
+
+message Frame {
+  oneof kind {
+    Hello hello = 1;
+    Command command = 2;
+    Event event = 3;
+  }
+}
+
+// Первое сообщение после установления соединения; токен передаётся
+// molvad'у через env при спавне. Несовпадение — немедленный разрыв.
+message Hello {
+  bytes token = 1;
+}
+
+// Команда UI → ядро. id — корреляция с CommandResult.
+message Command {
+  uint64 id = 1;
+  oneof kind {
+    SendText send_text = 2;
+    AcceptContact accept_contact = 3;
+    RejectContact reject_contact = 4;
+    BlockContact block_contact = 5;
+    UnblockContact unblock_contact = 6;
+    SetAlias set_alias = 7;
+    DeleteMessage delete_message = 8;
+    AddContact add_contact = 9;
+    ListChats list_chats = 10;
+    ListMessages list_messages = 11;
+    MyInvite my_invite = 12;
+  }
+}
+
+message SendText {
+  bytes peer = 1; // NodeID
+  string text = 2;
+}
+
+message AcceptContact {
+  bytes peer = 1;
+}
+
+message RejectContact {
+  bytes peer = 1;
+}
+
+message BlockContact {
+  bytes peer = 1;
+}
+
+message UnblockContact {
+  bytes peer = 1;
+}
+
+message SetAlias {
+  bytes peer = 1;
+  string alias = 2;
+}
+
+message DeleteMessage {
+  bytes peer = 1;
+  bytes msg_id = 2;
+}
+
+// Добавление контакта по инвайт-строке molva://add/...
+message AddContact {
+  string invite = 1;
+}
+
+message ListChats {}
+
+message ListMessages {
+  bytes peer = 1;
+  // Пагинация назад от before_seq; 0 — с конца.
+  uint64 before_seq = 2;
+  uint32 limit = 3;
+}
+
+// Запрос собственной инвайт-строки.
+message MyInvite {}
+
+// Событие ядро → UI.
+message Event {
+  oneof kind {
+    CommandResult command_result = 1;
+    MessageReceived message_received = 2;
+    MessageDelivered message_delivered = 3;
+    PresenceChanged presence_changed = 4;
+    ContactRequested contact_requested = 5;
+    ContactAccepted contact_accepted = 6;
+  }
+}
+
+// Ответ на Command с тем же id; для запросов — данные внутри.
+message CommandResult {
+  uint64 id = 1;
+  string error = 2; // пустая строка — успех
+  oneof data {
+    ChatList chats = 3;
+    MessageList messages = 4;
+    SentMessage sent = 5;
+    Invite invite = 6;
+  }
+}
+
+message ChatList {
+  repeated Chat chats = 1;
+}
+
+message Chat {
+  bytes peer = 1;
+  string alias = 2;
+  bool online = 3;
+  bool blocked = 4;
+  Message last_message = 5;
+}
+
+message MessageList {
+  repeated Message messages = 1;
+}
+
+message Message {
+  bytes msg_id = 1;
+  bytes peer = 2;     // собеседник
+  bool outgoing = 3;
+  string text = 4;    // пустая, если контент удалён локально
+  bool deleted = 5;
+  int64 sent_at = 6;  // unix миллисекунды, локальные часы записи
+  Status status = 7;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_QUEUED = 1;    // в outbox, пир офлайн
+    STATUS_SENT = 2;      // ушло в сеть, ack не получен
+    STATUS_DELIVERED = 3; // ack получателя
+  }
+}
+
+message SentMessage {
+  Message message = 1;
+}
+
+message Invite {
+  string invite = 1; // molva://add/...
+}
+
+message MessageReceived {
+  Message message = 1;
+}
+
+message MessageDelivered {
+  bytes peer = 1;
+  bytes msg_id = 2;
+}
+
+message PresenceChanged {
+  bytes peer = 1;
+  bool online = 2;
+}
+
+message ContactRequested {
+  bytes peer = 1;
+  string suggested_alias = 2;
+}
+
+message ContactAccepted {
+  bytes peer = 1;
+}

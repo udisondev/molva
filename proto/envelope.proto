@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package molva.envelope.v1;
+
+option go_package = "github.com/udisondev/molva/proto/envelopepb";
+
+// Envelope — единица обмена между узлами molva поверх nodenet.
+// Уровень надёжности приложения: получатель отвечает ack'ом на каждый
+// принятый конверт, отправитель ретраит из персистентного outbox,
+// дедупликация — по (originator, msg_id).
+message Envelope {
+  // 16 случайных байт; идентификатор для ack и дедупликации.
+  bytes msg_id = 1;
+  Type type = 2;
+  // Per-sender монотонный номер сообщений истории (детект дыр).
+  // Служебные конверты (ack, probe, pong) идут с нулём.
+  uint64 from_seq = 3;
+  // Лампортова метка для слияния порядка отображения в группах.
+  uint64 lamport_ts = 4;
+  // Содержимое, зависящее от type: ciphertext ratchet'а/sender key,
+  // либо открытый служебный payload (ack — msg_id подтверждаемого).
+  bytes payload = 5;
+}
+
+enum Type {
+  TYPE_UNSPECIFIED = 0;
+  // Подтверждение приёма: payload = msg_id подтверждаемого конверта.
+  TYPE_ACK = 1;
+  // Presence: пустой payload, мимо outbox и истории.
+  TYPE_PROBE = 2;
+  TYPE_PONG = 3;
+  // Знакомство: payload — открытый ContactRequest/ContactAccept.
+  TYPE_CONTACT_REQUEST = 4;
+  TYPE_CONTACT_ACCEPT = 5;
+  // Интерактивная инициализация Double Ratchet по прямому каналу.
+  TYPE_SESSION_INIT = 6;
+  TYPE_SESSION_INIT_ACK = 7;
+  // Личное сообщение: payload — ratchet-сообщение (заголовок + ciphertext).
+  TYPE_CHAT = 8;
+  // Групповое сообщение: payload — sender-key ciphertext + подпись.
+  TYPE_GROUP = 9;
+}

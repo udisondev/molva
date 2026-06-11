@@ -1,0 +1,5 @@
+ADR.md
+PLAN.md
+*.seed
+*.db
+*.db-*
