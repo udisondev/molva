@@ -8,6 +8,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "prestart": "go -C .. build -o molvad ./cmd/molvad",
     "build": "tsc -p tsconfig.json --noEmit && vite build && npm run build:electron",
     "build:electron": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --external:electron --outdir=dist-electron --format=cjs",
     "start": "npm run build && electron .",
