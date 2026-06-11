@@ -21,6 +21,7 @@ import (
 
 	"github.com/udisondev/molva/app"
 	"github.com/udisondev/molva/ipc"
+	"github.com/udisondev/molva/media"
 	"github.com/udisondev/molva/peer"
 	"github.com/udisondev/nodenet/identity"
 	"github.com/udisondev/nodenet/kad"
@@ -96,6 +97,7 @@ func run(log *slog.Logger, dataDir, listen, bootstrap string, dmin int, grace ti
 		OnCallState:        srv.OnCallState,
 		OnMediaFrame:       srv.PushMedia,
 		OnCallReconnecting: srv.OnCallReconnecting,
+		OnPreset:           func(l media.Preset) { srv.OnPreset(uint8(l)) },
 	})
 	if err != nil {
 		return err

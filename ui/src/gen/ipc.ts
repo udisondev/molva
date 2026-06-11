@@ -138,7 +138,13 @@ export interface Event {
     | { $case: "fileProgress"; fileProgress: FileProgress }
     | { $case: "fileDone"; fileDone: FileDone }
     | { $case: "callEvent"; callEvent: CallEvent }
+    | { $case: "mediaPreset"; mediaPreset: MediaPreset }
     | undefined;
+}
+
+/** Смена ступени качества видео (0 — только аудио, 1..3 — 240/480/720p). */
+export interface MediaPreset {
+  level: number;
 }
 
 /** Событие звонка: входящий/смена состояния/переустановка пути. */
@@ -2101,6 +2107,9 @@ export const Event: MessageFns<Event> = {
       case "callEvent":
         CallEvent.encode(message.kind.callEvent, writer.uint32(82).fork()).join();
         break;
+      case "mediaPreset":
+        MediaPreset.encode(message.kind.mediaPreset, writer.uint32(90).fork()).join();
+        break;
     }
     return writer;
   },
@@ -2198,6 +2207,14 @@ export const Event: MessageFns<Event> = {
           message.kind = { $case: "callEvent", callEvent: CallEvent.decode(reader, reader.uint32()) };
           continue;
         }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.kind = { $case: "mediaPreset", mediaPreset: MediaPreset.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2249,6 +2266,10 @@ export const Event: MessageFns<Event> = {
         ? { $case: "callEvent", callEvent: CallEvent.fromJSON(object.callEvent) }
         : isSet(object.call_event)
         ? { $case: "callEvent", callEvent: CallEvent.fromJSON(object.call_event) }
+        : isSet(object.mediaPreset)
+        ? { $case: "mediaPreset", mediaPreset: MediaPreset.fromJSON(object.mediaPreset) }
+        : isSet(object.media_preset)
+        ? { $case: "mediaPreset", mediaPreset: MediaPreset.fromJSON(object.media_preset) }
         : undefined,
     };
   },
@@ -2275,6 +2296,8 @@ export const Event: MessageFns<Event> = {
       obj.fileDone = FileDone.toJSON(message.kind.fileDone);
     } else if (message.kind?.$case === "callEvent") {
       obj.callEvent = CallEvent.toJSON(message.kind.callEvent);
+    } else if (message.kind?.$case === "mediaPreset") {
+      obj.mediaPreset = MediaPreset.toJSON(message.kind.mediaPreset);
     }
     return obj;
   },
@@ -2363,7 +2386,71 @@ export const Event: MessageFns<Event> = {
         }
         break;
       }
+      case "mediaPreset": {
+        if (object.kind?.mediaPreset !== undefined && object.kind?.mediaPreset !== null) {
+          message.kind = { $case: "mediaPreset", mediaPreset: MediaPreset.fromPartial(object.kind.mediaPreset) };
+        }
+        break;
+      }
     }
+    return message;
+  },
+};
+
+function createBaseMediaPreset(): MediaPreset {
+  return { level: 0 };
+}
+
+export const MediaPreset: MessageFns<MediaPreset> = {
+  encode(message: MediaPreset, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.level !== 0) {
+      writer.uint32(8).uint32(message.level);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MediaPreset {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMediaPreset();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.level = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MediaPreset {
+    return { level: isSet(object.level) ? globalThis.Number(object.level) : 0 };
+  },
+
+  toJSON(message: MediaPreset): unknown {
+    const obj: any = {};
+    if (message.level !== 0) {
+      obj.level = Math.round(message.level);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MediaPreset>, I>>(base?: I): MediaPreset {
+    return MediaPreset.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MediaPreset>, I>>(object: I): MediaPreset {
+    const message = createBaseMediaPreset();
+    message.level = object.level ?? 0;
     return message;
   },
 };

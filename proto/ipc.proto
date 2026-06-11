@@ -130,7 +130,13 @@ message Event {
     FileProgress file_progress = 8;
     FileDone file_done = 9;
     CallEvent call_event = 10;
+    MediaPreset media_preset = 11;
   }
+}
+
+// Смена ступени качества видео (0 — только аудио, 1..3 — 240/480/720p).
+message MediaPreset {
+  uint32 level = 1;
 }
 
 // Событие звонка: входящий/смена состояния/переустановка пути.

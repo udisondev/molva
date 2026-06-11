@@ -301,6 +301,11 @@ function handleEvent(ev: CoreEvent): void {
       showToast(`ФАЙЛ ПРИНЯТ: ${ev.kind.fileDone.path}`);
       break;
     }
+    case "mediaPreset": {
+      const lvl = ev.kind.mediaPreset.level;
+      showToast(lvl === 0 ? "КАЧЕСТВО: ТОЛЬКО АУДИО" : `КАЧЕСТВО: ${["", "240P", "480P", "720P"][lvl] ?? lvl}`);
+      break;
+    }
     case "callEvent": {
       const e = ev.kind.callEvent;
       const call: CallVM = {

@@ -163,7 +163,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close(websocket.StatusInternalError, "")
-	conn.SetReadLimit(MaxFrameLen + 1024)
+	conn.SetReadLimit(MaxMediaPayload + 4096)
 
 	actx, cancel := context.WithTimeout(r.Context(), authTimeout)
 	ok := s.auth(actx, conn)
@@ -389,6 +389,11 @@ func (s *Server) OnCallIncoming(c callsig.Call) { s.pushCallEvent(c, false) }
 
 // OnCallState — смена состояния звонка.
 func (s *Server) OnCallState(c callsig.Call) { s.pushCallEvent(c, false) }
+
+// OnPreset — смена ступени качества видео.
+func (s *Server) OnPreset(level uint8) {
+	s.emit(&ipcpb.Event{Kind: &ipcpb.Event_MediaPreset{MediaPreset: &ipcpb.MediaPreset{Level: uint32(level)}}})
+}
 
 // OnCallReconnecting — переустановка медиапути.
 func (s *Server) OnCallReconnecting(callID [16]byte) {

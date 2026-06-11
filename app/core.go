@@ -66,6 +66,8 @@ type Config struct {
 	// транспорта, использовать строго синхронно.
 	OnMediaFrame       func(ch uint8, rx time.Time, payload []byte)
 	OnCallReconnecting func(callID [16]byte)
+	// OnPreset — смена ступени лестницы качества видео.
+	OnPreset func(media.Preset)
 }
 
 // Core — работающее ядро molva: nodenet-узел, хранилище, движок надёжной
@@ -144,6 +146,7 @@ func New(cfg Config) (*Core, error) {
 	c.groups.SetOnMessage(cfg.OnGroupMessage)
 
 	c.bridge = media.NewBridge(cfg.OnMediaFrame, c.onMediaClosed)
+	c.bridge.SetAdapter(media.NewAdapter(media.Preset720, cfg.OnPreset))
 	c.calls = callsig.NewManager(c.chats, self)
 	c.onReconn = cfg.OnCallReconnecting
 	c.calls.SetCallbacks(cfg.OnCallIncoming, func(call callsig.Call) {

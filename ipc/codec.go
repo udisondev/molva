@@ -25,8 +25,9 @@ const (
 
 	// mediaHeaderLen — тег + канал + rx.
 	mediaHeaderLen = 1 + 1 + 8
-	// MaxMediaPayload — потолок payload'а медиакадра (датаграмма nodenet).
-	MaxMediaPayload = 1200
+	// MaxMediaPayload — потолок payload'а медиакадра: видеокадр целиком
+	// (дробление на сегменты — забота моста, не IPC).
+	MaxMediaPayload = 1 << 20
 )
 
 // Ошибки кодека (кадры от renderer'а — недоверенный ввод).

@@ -9,6 +9,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/udisondev/molva/app"
 	"github.com/udisondev/molva/contact"
+	"github.com/udisondev/molva/media"
 	"github.com/udisondev/molva/peer"
 	"github.com/udisondev/molva/proto/ipcpb"
 	"github.com/udisondev/nodenet/identity"
@@ -50,6 +51,7 @@ func startServer(t *testing.T) (*Server, string) {
 		OnCallState:        srv.OnCallState,
 		OnMediaFrame:       srv.PushMedia,
 		OnCallReconnecting: srv.OnCallReconnecting,
+		OnPreset:           func(l media.Preset) { srv.OnPreset(uint8(l)) },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +78,7 @@ func dial(t *testing.T, addr string) *websocket.Conn {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	conn.SetReadLimit(MaxFrameLen + 1024)
+	conn.SetReadLimit(MaxMediaPayload + 4096)
 	return conn
 }
 
